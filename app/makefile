@@ -1,5 +1,5 @@
 all:
 	g++ -o vmx vmx.cc -lSDL2
-	./vmx
+	./vmx > vmx.log
 clean:
 	rm vmx

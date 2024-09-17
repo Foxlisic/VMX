@@ -7,6 +7,11 @@ VMX::VMX(int argc, char** argv)
     length      = (1000/50);        // 50 кадров в секунду
     pticks      = 0;                // Отсчет кадра
 
+    border      = 0;                // Цвет бордера
+    port7ffd    = 0x10;             // 48К по умолчанию
+    ppu_x       = 0;
+    ppu_y       = 0;
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         exit(1);
     }
@@ -22,9 +27,9 @@ VMX::VMX(int argc, char** argv)
     // Загрузка ROM
     for (int i = 0; i < 16384; i++) {
 
-        rom[0x0000 + i] = rom128k[i];
-        rom[0x4000 + i] = rom48k[i];
-        rom[0x8000 + i] = trdosrom[i];
+        program[0x0000 + i] = rom128k[i];
+        program[0x4000 + i] = rom48k[i];
+        program[0x8000 + i] = trdosrom[i];
     }
 }
 
@@ -56,7 +61,7 @@ int VMX::main()
 
             pticks = ticks;
 
-            // frame();
+            oneframe();
 
             SDL_UpdateTexture       (sdl_screen_texture, NULL, screen_buffer, width*sizeof(Uint32));
             SDL_SetRenderDrawColor  (sdl_renderer, 0, 0, 0, 0);
@@ -92,4 +97,30 @@ void VMX::pset(int x, int y, Uint32 cl)
     }
 
     screen_buffer[width*y + x] = cl;
+}
+
+// Отсчет одного фрейма
+void VMX::oneframe()
+{
+    int all_cycles = 0;
+    while (all_cycles < 448*312) {
+
+        int cycles = 1; // Симуляция такта
+        all_cycles += ppu(cycles);
+    }
+}
+
+// Отсчитать количество тактов PPU
+int VMX::ppu(int cpu_cycles)
+{
+    cpu_cycles *= 2;
+
+    for (int i = 0; i < cpu_cycles; i++) {
+
+        // Размер кадра равен [448 x 312]
+        ppu_y = (ppu_y + (ppu_x == 447)) % 312;
+        ppu_x = (ppu_x + 1) % 448;
+    }
+
+    return cpu_cycles;
 }
