@@ -2,13 +2,13 @@
 VMX::VMX(int argc, char** argv)
 {
     scale       = 2;                // Удвоение пикселей
-    width       = 320;              // Ширина экрана
-    height      = 240;              // Высота экрана
+    width       = 320;              // Ширина экрана [48+256+48]
+    height      = 240;              // Высота экрана [56+192+56]
     length      = (1000/50);        // 50 кадров в секунду
     pticks      = 0;                // Отсчет кадра
 
     border      = 0;                // Цвет бордера
-    port7ffd    = 0x10;             // 48К по умолчанию
+    port_7ffd   = 0x10;             // 48К по умолчанию
     ppu_x       = 0;
     ppu_y       = 0;
 
@@ -30,6 +30,29 @@ VMX::VMX(int argc, char** argv)
         program[0x0000 + i] = rom128k[i];
         program[0x4000 + i] = rom48k[i];
         program[0x8000 + i] = trdosrom[i];
+    }
+
+    // Заполнение таблицы адресов
+    for (int y = 0; y < 192; y++) {
+        lutfb[y] = 32*((y & 0x38)>>3) + 256*(y&7) + 2048*(y>>6);
+    }
+
+    loadScreen("scr/firecast.scr");
+}
+
+// Загрузка скриншота .scr
+void VMX::loadScreen(const char* screenshot)
+{
+    FILE* fp = fopen(screenshot, "rb");
+    if (fp) {
+
+        fread(ram + 0x4000*(port_7ffd & 0x08 ? 7 : 5), 1, 6144+768, fp);
+        fclose(fp);
+
+    } else {
+
+        printf("Screenshot not found\n");
+        exit(1);
     }
 }
 
@@ -103,11 +126,19 @@ void VMX::pset(int x, int y, Uint32 cl)
 void VMX::oneframe()
 {
     int all_cycles = 0;
+
+    ppu_x = 0;
+    ppu_y = 0;
+
     while (all_cycles < 448*312) {
 
-        int cycles = 1; // Симуляция такта
+        // Симуляция такта
+        int cycles = 1;
         all_cycles += ppu(cycles);
     }
+
+    // Мерцающие элементы
+    flash_state = (flash_state + 1) % 50;
 }
 
 // Отсчитать количество тактов PPU
@@ -116,6 +147,54 @@ int VMX::ppu(int cpu_cycles)
     cpu_cycles *= 2;
 
     for (int i = 0; i < cpu_cycles; i++) {
+
+        // Реальные размеры
+        int x = ppu_x - 96,
+            y = ppu_y - 8;
+
+        // Коррекция под экран 320x200
+        int cx = x - 16,
+            cy = y - 32;
+
+        // Указывает, что при записи или чтении видеопамяти будет добавляться +1 такт CPU
+        contended_mem = 0;
+
+        // Видимая область
+        if (x >= 0 && y >= 0) {
+
+            // Область рисования PAPER
+            if (x >= 48 && x < 48+256 && y >= 56 && y < 56+192) {
+
+                contended_mem = (port_7ffd & 0x30) ? 1 : 0;
+
+                if ((x & 7) == 0) {
+
+                    int A  = lutfb[y-56] + ((x-48) >> 3);
+                    int Bs = 0x4000*(port_7ffd & 0x08 ? 7 : 5);
+
+                    int byte    = ram[Bs + A];
+                    int attr    = ram[Bs + 0x1800 + (A & 0x1F) + ((A & 0x1800) >> 3) + (A & 0xE0)];
+                    int bgcolor = (attr & 0x38) >> 3;
+                    int frcolor = (attr & 0x07) + ((attr & 0x40) >> 3);
+                    int flash   = (attr & 0x80) ? 1 : 0;
+                    int bright  = (attr & 0x40) ? 8 : 0;
+
+                    for (int j = 0; j < 8; j++) {
+
+                        uint8_t  pix = (byte & (0x80 >> j)) ? 1 : 0;
+                        uint32_t clr = bright | ((flash ? (pix ^ (flash_state > 25 ? 1 : 0)) : pix) ? frcolor : bgcolor);
+
+                        screen[x + j][y] = clr;
+                        pset(cx + j, cy, colors[clr]);
+                    }
+                }
+
+            } else {
+
+                screen[x][y] = border & 7;
+                pset(cx, cy, colors[border & 7]);
+            }
+        }
 
         // Размер кадра равен [448 x 312]
         ppu_y = (ppu_y + (ppu_x == 447)) % 312;
