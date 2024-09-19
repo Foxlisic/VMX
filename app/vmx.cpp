@@ -203,3 +203,14 @@ int VMX::ppu(int cpu_cycles)
 
     return cpu_cycles;
 }
+
+// Чтение адреса из памяти, в зависимости от банков
+uint8_t VMX::read(uint16_t a)
+{
+    return 0;
+}
+
+// Запись в память
+void VMX::write(uint16_t a, uint8_t b)
+{
+}

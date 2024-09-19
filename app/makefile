@@ -1,5 +1,5 @@
 all:
-	g++ -Wno-unused-result -Ofast -o vmx vmx.cc -lSDL2
+	g++ -Wno-unused-result -Ofast -o vmx vmx.cc -g -lSDL2
 	./vmx > vmx.log
 clean:
 	rm vmx
