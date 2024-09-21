@@ -18,6 +18,7 @@ module z80
     output  reg         we,             // =1 Запись в память
     output              m0,             // =1 Сигнал начала инструкции
     input        [ 7:0] portin,         // portin=port[address]
+    output  reg         portrd,         // Сигнал чтения из порта address
     output  reg         portwe,         // Сигнал записи в порт address
     // -----------------------------------------------------------------
     // Регистры процессора z80 [здесь для отладки]
@@ -79,6 +80,7 @@ reg_wf   <= 0;
 reg_wfex <= 0;
 we       <= 0;
 portwe   <= 0;
+portrd   <= 0;
 // Ожидание задержки после исполнения инструкции
 if (compat && delay) delay <= delay - 1;
 // Сброс процессора
@@ -635,7 +637,7 @@ else begin
         endcase
         // 3T/11T: IN A,(*)
         8'b11_011_011: case (t_state)
-            1: begin bus <= 1; cp <= {af[7:0], i_data}; hptr <= af[7:0]; pc <= pc + 1; end
+            1: begin bus <= 1; cp <= {af[7:0], i_data}; hptr <= af[7:0]; pc <= pc + 1; portrd <= 1; end
             2: begin
                 reg_id <= 7;
                 reg_w8 <= 1;
@@ -746,7 +748,7 @@ else begin
                 opcode_ext <= i_data;
                 casex (i_data)
                     // IN r8, (C)
-                    8'b01_xxx_000: begin cp <= bc; bus <= 1; end
+                    8'b01_xxx_000: begin cp <= bc; bus <= 1; portrd <= 1; end
                     // OUT (C), r8
                     8'b01_xxx_001: begin
                         bus     <= 1;
@@ -819,6 +821,7 @@ else begin
                         alu_m   <= alu_dec;
                         op1     <= bc[15:8];
                         op2     <= 1;
+                        portrd  <= 1;
                     end
                     // NOP инструкция
                     default: begin t_state <= 0; delay <= 8-2; end

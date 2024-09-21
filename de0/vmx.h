@@ -120,12 +120,12 @@ public:
 
     VMX(int argc, char** argv)
     {
-        scale       = 2;               // Удвоение пикселей
-        width       = 320;             // Ширина экрана
-        height      = 240;             // Высота экрана
-        length      = (1000/50);       // 50 FPS
+        scale       = 2;                // Удвоение пикселей
+        width       = 320;              // Ширина экрана
+        height      = 240;              // Высота экрана
+        length      = (1000/50);        // 50 FPS
         pticks      = 0;
-        port_7ffd   = 0x10;
+        port_7ffd   = 0x00;             // 48=0x10 128=0x00
 
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
             exit(1);
@@ -144,6 +144,10 @@ public:
             rom[0x0000 + i] = rom128k[i];
             rom[0x4000 + i] = rom48k[i];
             rom[0x8000 + i] = trdosrom[i];
+        }
+
+        for (int i = 0; i < 8; i++) {
+            key_states[i] = 0xFF;
         }
 
         // Заполнение таблицы адресов
@@ -212,18 +216,29 @@ public:
 
                 for (int i = 0; i < 1024; i++) {
 
-                    // Чтение или запись в память
-                    if (core->we)     write(core->address, core->o_data);
-                    if (core->portwe) io_write(core->address, core->o_data);
+                    uint16_t A = core->address;
 
-                    core->i_data = read(core->address);
-                    core->portin = io_read(core->address);
+                    // Чтение или запись в память
+                    if (core->we)     write(A, core->o_data);
+                    if (core->portwe) io_write(A, core->o_data);
+
+                    core->i_data = read(A);
+                    core->portin = io_read(A);
 
                     if (core->m0) {
 
-                        disasm(core->address);
-                        printf("[%05d] #%04X %s %s\n", cycles, core->address, ds_opcode, ds_operand);
+                        trdos_handler(A);
+
+                        // disasm(core->address);
+                        // printf("[%05d] #%04X %s %s\n", cycles, core->address, ds_opcode, ds_operand);
                     }
+
+                    /*
+                    if ((A & 1) && (A != 0x7ffd) && (A != 0xfffd) && (A != 0xbffd)) {
+                        if (core->portrd) printf("RD %4x\n",     A);
+                        if (core->portwe) printf("WR %4x %2x\n", A, core->o_data);
+                    }
+                    */
 
                     core->clock = 0; core->eval();
                     core->clock = 1; core->eval();
@@ -404,9 +419,6 @@ public:
         // Чтение клавиатуры
         else if ((port & 1) == 0) {
 
-            // Чтение из порта во время движения луча по бордеру
-            // if (contended_mem && beam_drawing && !beam_in_paper) { cycle_counter++; }
-
             int result = 0xff;
             for (int row = 0; row < 8; row++) {
                 if (!(port & (1 << (row + 8)))) {
@@ -417,11 +429,11 @@ public:
             return result;
         }
         // Kempston Joystick
-        else if ((port & 0x00e0) == 0x0000) {
+        else if ((port & 0x00E0) == 0x0000) {
             return 0x00;
         }
 
-        return 0xff;
+        return 0xFF;
     }
 
     // Запись в порт
@@ -430,8 +442,9 @@ public:
         if (port == 0x7ffd) {
 
             // Не менять бит D5 если он 1
-            if ((port_7ffd & 0x20) && (data & 0x20) == 0)
+            if ((port_7ffd & 0x20) && (data & 0x20) == 0) {
                 data |= 0x20;
+            }
 
             port_7ffd = data;
         }
@@ -439,11 +452,11 @@ public:
         // else if (port == 0xFFFD) { ay_register = data & 15; }
         // AY address data
         // else if (port == 0xBFFD) { ay_write_data(data); }
-        else if (port == 0x1FFD) { /* ничего пока что */ }
+        // https://speccy.info/Порт_1FFD
+        else if (port == 0x1FFD) {
+            /* ничего пока что */
+        }
         else if ((port & 1) == 0) {
-
-            // Чтение в порт во время движения луча по бордеру
-            // if (contended_mem && beam_drawing && !beam_in_paper) { cycle_counter++; }
 
             border  = (data & 7);
             port_fe = data;
@@ -453,7 +466,7 @@ public:
     // Проверяется наличие входа и выхода из TRDOS
     void trdos_handler(uint16_t pc) {
 
-        // Only 48k ROM allowed
+        // Только 48k ROM разрешен
         if (port_7ffd & 0x10) {
 
             // Вход в TRDOS : инструкция находится в адресе 3Dh
