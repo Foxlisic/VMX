@@ -28,7 +28,7 @@ protected:
     uint8_t     ram[131072];
     uint16_t    lutfb[192];
 
-    uint8_t     screen[352][304];
+    uint8_t     screen[352][312];
     uint8_t     port_7ffd, border, flash_state = 0;
 
     Vz80* core;
@@ -37,12 +37,12 @@ public:
 
     VMX(int argc, char** argv)
     {
-        scale   = 2;               // Удвоение пикселей
-        width   = 320;             // Ширина экрана
-        height  = 240;             // Высота экрана
-        length  = (1000/50);       // 50 FPS
-        pticks  = 0;
-        port_7ffd = 0x10;
+        scale       = 2;               // Удвоение пикселей
+        width       = 320;             // Ширина экрана
+        height      = 240;             // Высота экрана
+        length      = (1000/50);       // 50 FPS
+        pticks      = 0;
+        port_7ffd   = 0x10;
 
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
             exit(1);
@@ -72,13 +72,13 @@ public:
         core = new Vz80;
         core->reset_n   = 0;
         core->hold      = 1;
-        core->compat    = 0;
+        core->compat    = 1;
         core->irq       = 0;
         core->clock     = 0; core->eval();
         core->clock     = 1; core->eval();
         core->reset_n   = 0;
 
-        loadScreen("../app/scr/fox.scr");
+        loadScreen("../app/scr/aloha.scr");
     }
 
     // Основной цикл работы
@@ -103,7 +103,14 @@ public:
                 switch (evt.type) { case SDL_QUIT: return 0; }
             }
 
+            ppu_x = ppu_y = 0;
             Uint32 start = SDL_GetTicks();
+            uint8_t brk = 0;
+
+            // 69888=Sinclair Standart Cycles
+            // 71680=Pentagonum
+            // Длина строки у каждого равна 224
+            int cycles_max = 71680;
 
             // Один кадр
             do {
@@ -113,15 +120,27 @@ public:
                     core->clock = 0; core->eval();
                     core->clock = 1; core->eval();
                     cycles++;
+
+                    // В режиме совместимости подсчет циклов
+                    if (core->compat) {
+
+                        ppu_clock();
+                        ppu_clock();
+
+                        if (cycles >= cycles_max) { brk = 1; break; }
+                    }
                 }
 
-            } while (SDL_GetTicks() - start < length);
+            } while (SDL_GetTicks() - start < length && (brk == 0));
 
-            // Отрендерить один фрейм
-            ppu_x = ppu_y = 0; for (int i = 0; i < 448*312; i++) ppu_clock();
+            // Отрендерить один фрейм в режиме несовместимости
+            if (core->compat == 0) for (int i = 0; i < cycles_max; i++) ppu_clock();
 
             // Мерцающие элементы
             flash_state = (flash_state + 1) % 50;
+
+            // В случае досрочного завершения кадра, ждать
+            while (SDL_GetTicks() - start < length) SDL_Delay(1);
 
             // Обновление экрана
             SDL_UpdateTexture       (sdl_screen_texture, NULL, screen_buffer, width * sizeof(Uint32));
@@ -130,7 +149,8 @@ public:
             SDL_RenderCopy          (sdl_renderer, sdl_screen_texture, NULL, & dstRect);
             SDL_RenderPresent       (sdl_renderer);
 
-            SDL_Delay(1);
+            // Так как используется ПОЛНАЯ мощность, то слегка задержать кадр
+            if (core->compat == 0) SDL_Delay(1);
         }
     }
 
@@ -171,7 +191,6 @@ public:
 
         screen_buffer[width*y + x] = cl;
     }
-
 
     // Отсчитать количество тактов PPU
     void ppu_clock()
@@ -220,7 +239,7 @@ public:
         }
 
         // Размер кадра равен [448 x 312]
-        ppu_y = (ppu_y + (ppu_x == 447)) % 312;
+        ppu_y = (ppu_y + (ppu_x == 447));
         ppu_x = (ppu_x + 1) % 448;
     }
 };
