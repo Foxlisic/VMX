@@ -22,6 +22,18 @@ enum CPUFlags {
     SF  = 0x80
 };
 
+enum ALUMode
+{
+    alu_add = 0, alu_rlc =  8, alu_inc = 16, alu_rlca = 24,
+    alu_adc = 1, alu_rrc =  9, alu_dec = 17, alu_rrca = 25,
+    alu_sub = 2, alu_rl  = 10,               alu_rla  = 26,
+    alu_sbc = 3, alu_rr  = 11,               alu_rra  = 27,
+    alu_and = 4, alu_sla = 12, alu_daa = 20, alu_bit  = 28,
+    alu_xor = 5, alu_sra = 13, alu_cpl = 21, alu_set  = 29,
+    alu_or  = 6, alu_sll = 14, alu_scf = 22, alu_res  = 30,
+    alu_cp  = 7, alu_srl = 15, alu_ccf = 23
+};
+
 enum Mnemonics
 {
     NOP  = 0,   LDW     = 1,    LDBCA   = 2,    INCW    = 3,

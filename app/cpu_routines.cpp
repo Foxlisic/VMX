@@ -135,6 +135,27 @@ void VMX::cpu_update53(uint8_t data)
     C->af = (C->af & ~F3F) | (data & F3F);
 }
 
+void VMX::cpu_setsf(uint8_t a)
+{
+    C->af = (C->af & ~SF) | (a ? SF : 0);
+}
+
+void VMX::cpu_setzf(uint8_t a)
+{
+    C->af = (C->af & ~SF) | (a ? 0 : ZF);
+}
+
+void VMX::cpu_setnf(uint8_t a)
+{
+    C->af = (C->af & ~NF) | (a ? NF : 0);
+}
+
+// Overflow flag
+void VMX::cpu_setof(uint8_t a)
+{
+    C->af = (C->af & ~PF) | (a ? PF : 0);
+}
+
 // Вычислить Parity и записать
 void VMX::cpu_setpf(uint8_t a)
 {
@@ -156,3 +177,84 @@ void VMX::cpu_sethf(uint8_t data)
     C->af = (C->af & ~HF) | (data ? HF : 0);
 }
 
+// Вычисление
+uint8_t VMX::cpu_alu(int mode, uint8_t a, uint8_t b)
+{
+    int     c = a;
+    int     daa_hf, daa_cf;
+    uint8_t daa_1;
+
+    switch (mode)
+    {
+        case alu_add: c = a + b; break;
+        case alu_adc: c = a + b + (C->af & CF); break;
+        case alu_sub:
+        case alu_cp:  c = a - b; break;
+        case alu_sbc: c = a - b - (C->af & CF); break;
+        case alu_and: c = a & b; break;
+        case alu_xor: c = a ^ b; break;
+        case alu_or:  c = a | b; break;
+        case alu_rlca:
+        case alu_rlc: c = (a << 1) | (a >> 7); break;
+        case alu_rrca:
+        case alu_rrc: c = (a >> 1) | ((a & 1) << 7); break;
+        case alu_rla:
+        case alu_rl:  c = (a << 1) | (C->af & CF); break;
+        case alu_rra:
+        case alu_rr:  c = (a >> 1) | ((C->af & CF) << 7); break;
+        case alu_sla: c = a << 1; break;
+        case alu_sll: c = (a << 1) | 1; break;
+        case alu_sra: c = (a >> 1) | (a & SF); break;
+        case alu_srl: c = (a >> 1); break;
+        case alu_cpl: c = a ^ 0xFF; break;
+        case alu_daa:
+
+            daa_hf = (C->af & HF) || a > 0x09;
+            daa_cf = (C->af & CF) || a > 0x99;
+            daa_1  = (C->af & NF) ? (daa_hf ? a     - 0x06 : a    ) : (daa_hf ? a     + 0x06 : a    );
+            c      = (C->af & NF) ? (daa_cf ? daa_1 - 0x60 : daa_1) : (daa_cf ? daa_1 + 0x60 : daa_1);
+            break;
+    }
+
+    // Установка флагов
+    switch (mode)
+    {
+        case alu_add:
+        case alu_adc:
+
+            cpu_setsf(c);
+            cpu_setzf(c);
+            cpu_update53(c);
+            cpu_sethf(mode == alu_add ? a ^ b ^ c : (a & 15) + (b & 15) + (C->af & CF) >= 0x10);
+            cpu_setof((a ^ b ^ 0x80) & (a ^ c) & 0x80);
+            cpu_setnf(0);
+            cpu_setcf(c >> 8);
+            break;
+
+        case alu_sub:
+        case alu_sbc:
+
+            cpu_setsf(c);
+            cpu_setzf(c);
+            cpu_update53(c);
+            cpu_sethf(mode == alu_sub ? a ^ b ^ c : (a & 15) - (b & 15) - (C->af & CF) < 0);
+            cpu_setof((a ^ b) & (a ^ c) & 0x80);
+            cpu_setnf(1);
+            cpu_setcf(c >> 8);
+            break;
+
+        // Флаги 5 и 3 обновляются из B, а не из результата
+        case alu_cp:
+
+            cpu_setsf(c);
+            cpu_setzf(c);
+            cpu_update53(b);
+            cpu_sethf(a ^ b ^ c);
+            cpu_setof((a ^ b) & (a ^ c) & 0x80);
+            cpu_setnf(1);
+            cpu_setcf(c >> 8);
+            break;
+    }
+
+    return 0;
+}
