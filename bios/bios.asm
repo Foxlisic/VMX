@@ -5,3 +5,7 @@
         jp      reset   ; 3
 ;
 reset:  halt
+        nop
+        nop
+        nop
+        halt

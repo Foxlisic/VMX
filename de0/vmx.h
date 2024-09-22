@@ -333,7 +333,7 @@ public:
                 } while (SDL_GetTicks() - start < length && (brk == 0));
 
                 // Отрендерить один фрейм в режиме несовместимости
-                if (core->compat == 0) for (int i = 0; i < 2*cycles_max; i++) ppu_clock();
+                if (core->compat == 0) update_screen();
 
                 // Мерцающие элементы
                 flash_state = (flash_state + 1) % 50;
@@ -381,6 +381,13 @@ public:
 
         core->clock = 0; core->eval();
         core->clock = 1; core->eval();
+    }
+
+    // Полное обновление экрана
+    void update_screen()
+    {
+        ppu_x = ppu_y = 0;
+        for (int i = 0; i < 2*69888; i++) ppu_clock();
     }
 
     // Отсчитать количество тактов PPU
@@ -690,6 +697,7 @@ public:
             */
 
             case SDL_SCANCODE_F1:   if (press) disasm_repaint(); break;
+            case SDL_SCANCODE_F2:   if (press) update_screen(); break;
             case SDL_SCANCODE_F7:   if (press) disasm_step(); break;
             case SDL_SCANCODE_F9:   if (press) disasm_detach(); break;
 
@@ -901,9 +909,9 @@ public:
 
         loc(34, 5);  fr = _black; print("IX "); fr = ds_change[8] ? _white : _black; sprintf(buf, "%04X", core->ix); print(buf);
         loc(34, 6);  fr = _black; print("IY "); fr = ds_change[9] ? _white : _black; sprintf(buf, "%04X", core->iy); print(buf);
-        loc(34, 7);  fr = _black; print("IR "); fr = ds_change[10] ? _white : _black; sprintf(buf, "%04X", core->ir); print(buf);
+        loc(34, 7);  fr = _black; print("PC "); fr = ds_change[10] ? _white : _black; sprintf(buf, "%04X", core->pc); print(buf);
         loc(34, 8);  fr = _black; print("SP "); fr = ds_change[11] ? _white : _black; sprintf(buf, "%04X", core->sp); print(buf);
-        loc(34, 9);  fr = _black; print("PC "); fr = ds_change[12] ? _white : _black; sprintf(buf, "%04X", core->pc); print(buf);
+        loc(34, 9);  fr = _black; print("IR "); fr = ds_change[12] ? _white : _black; sprintf(buf, "%04X", core->ir); print(buf);
         loc(34, 10); fr = _black; print("IMODE "); fr = ds_change[13] ? _white : _black; sprintf(buf, "%d", core->i_mode); print(buf);
         loc(34, 11); fr = _black; print("IFF12 "); fr = ds_change[14] || ds_change[15] ? _white : _black; sprintf(buf, "%d %d", core->iff1, core->iff2); print(buf);
 
