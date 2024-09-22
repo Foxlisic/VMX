@@ -21,6 +21,24 @@ module z80
     output  reg         portrd,         // Сигнал чтения из порта address
     output  reg         portwe,         // Сигнал записи в порт address
     // -----------------------------------------------------------------
+    // Отладочное состояние при включении процессора
+    // -----------------------------------------------------------------
+    input        [15:0] _bc,
+    input        [15:0] _de,
+    input        [15:0] _hl,
+    input        [15:0] _af,
+    input        [15:0] _bc_prime,
+    input        [15:0] _de_prime,
+    input        [15:0] _hl_prime,
+    input        [15:0] _ix,
+    input        [15:0] _iy,
+    input        [15:0] _pc,
+    input        [15:0] _sp,
+    input        [15:0] _ir,
+    input        [ 1:0] _i_mode,
+    input               _iff1,
+    input               _iff2,
+    // -----------------------------------------------------------------
     // Регистры процессора z80 [здесь для отладки]
     // -----------------------------------------------------------------
     // Основной и дополнительный наборы регистров
@@ -85,14 +103,14 @@ portrd   <= 0;
 if (compat && delay) delay <= delay - 1;
 // Сброс процессора
 else if (reset_n == 1'b0) begin
-    pc          <= 0;
+    i_mode      <= _i_mode;
+    ir          <= _ir;
     bus         <= 0;
     t_state     <= 0;
     set_prefix  <= 0;
-    i_mode      <= 0;
     hptr        <= 0;
-    iff1 <= 1'b0; iff1_ <= 1'b0;
-    iff2 <= 1'b0; iff2_ <= 1'b0;
+    iff1        <= _iff1; iff1_ <= 1'b0;
+    iff2        <= _iff2; iff2_ <= 1'b0;
 end
 // Обработка прерывания
 else if (irq_process) case (t_state)
@@ -1309,8 +1327,13 @@ wire [7:0] rsop =
 // -----------------------------------------------------------------------------
 always @(negedge clock)
 if (reset_n == 1'b0) begin
-    af <= 16'hFFFF;
-    sp <= 16'hFFFF;
+    af <= _af;
+    sp <= _sp;
+    bc <= _bc; bc_prime <= _bc_prime;
+    de <= _de; de_prime <= _de_prime;
+    hl <= _hl; hl_prime <= _hl_prime;
+    ix <= _ix;
+    iy <= _iy;
 end
 else if (hold) begin
     // Особая запись в регистры

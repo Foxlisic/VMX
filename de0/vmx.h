@@ -106,6 +106,10 @@ protected:
     uint8_t     port_7ffd, border, flash_state = 0;
     uint8_t     trdos_latch = 0, port_fe = 0;
 
+    uint8_t     debug_console = 0;
+    uint8_t     debug_window  = 0;
+    uint8_t     compat = 1;
+
     // Disassembly.2000
     int     ds_ad;             // Текущая временная позиция разбора инструкции
     int     ds_size;           // Размер инструкции
@@ -125,7 +129,26 @@ public:
         height      = 240;              // Высота экрана
         length      = (1000/50);        // 50 FPS
         pticks      = 0;
-        port_7ffd   = 0x00;             // 48=0x10 128=0x00
+        port_7ffd   = 0x10;             // 48=0x10 128=0x00
+
+        int n = 1;
+
+        // Разбор входящих параметров
+        while (n < argc) {
+
+            if (argv[n][0] == '-') {
+
+                switch (argv[n][1])
+                {
+                    case '2': port_7ffd = 0x00; break;
+                    case 'd': debug_console = 1; break;
+                    case 'D': debug_window  = 1; width = 640; break;
+                    case 'u': compat = 0; break;
+                }
+            }
+
+            n++;
+        }
 
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
             exit(1);
@@ -157,15 +180,38 @@ public:
 
         // Перезапуск процессора
         core = new Vz80;
+        reset(0);
+    }
+
+    void reset(int reloadreg)
+    {
+        // Загрузка нулевых регистров
+        if (reloadreg == 0) {
+
+            core->_bc       = 0;
+            core->_de       = 0;
+            core->_hl       = 0;
+            core->_af       = 0xFFFF;
+            core->_bc_prime = 0;
+            core->_de_prime = 0;
+            core->_hl_prime = 0;
+            core->_ix       = 0;
+            core->_iy       = 0;
+            core->_pc       = 0;
+            core->_sp       = 0xFFFF;
+            core->_ir       = 0;
+            core->_i_mode   = 0;
+            core->_iff1     = 0;
+            core->_iff2     = 0;
+        }
+
         core->reset_n   = 0;
         core->hold      = 1;
-        core->compat    = 1;
+        core->compat    = compat;
         core->irq       = 0;
         core->clock     = 0; core->eval();
         core->clock     = 1; core->eval();
         core->reset_n   = 1;
-
-        loadScreen("../app/scr/aloha.scr");
     }
 
     // Основной цикл работы
@@ -229,8 +275,10 @@ public:
 
                         trdos_handler(A);
 
-                        // disasm(core->address);
-                        // printf("[%05d] #%04X %s %s\n", cycles, core->address, ds_opcode, ds_operand);
+                        if (debug_console) {
+                            disasm(core->address);
+                            printf("[%05d] #%04X %s %s\n", cycles, core->address, ds_opcode, ds_operand);
+                        }
                     }
 
                     /*
@@ -239,6 +287,9 @@ public:
                         if (core->portwe) printf("WR %4x %2x\n", A, core->o_data);
                     }
                     */
+
+                    // Запрос #IRQ, в compat режиме вызывается после 192-й линии
+                    core->irq = (cycles >= 224*192 && cycles < (224+1)*192);
 
                     core->clock = 0; core->eval();
                     core->clock = 1; core->eval();
@@ -249,10 +300,6 @@ public:
 
                         ppu_clock();
                         ppu_clock();
-
-                        // Запрос #IRQ
-                        core->irq = (cycles >= 224*192 && cycles < (224+1)*192);
-
                         if (cycles >= cycles_max) { brk = 1; break; }
                     }
                 }
@@ -260,7 +307,7 @@ public:
             } while (SDL_GetTicks() - start < length && (brk == 0));
 
             // Отрендерить один фрейм в режиме несовместимости
-            if (core->compat == 0) for (int i = 0; i < cycles_max; i++) ppu_clock();
+            if (core->compat == 0) for (int i = 0; i < 2*cycles_max; i++) ppu_clock();
 
             // Мерцающие элементы
             flash_state = (flash_state + 1) % 50;
@@ -353,14 +400,14 @@ public:
                         uint32_t clr = bright | ((flash ? (pix ^ (flash_state > 25 ? 1 : 0)) : pix) ? frcolor : bgcolor);
 
                         screen[x + j][y] = clr;
-                        pset(cx + j, cy, colors[clr]);
+                        if (cx < 320) pset(cx + j, cy, colors[clr]);
                     }
                 }
 
             } else {
 
                 screen[x][y] = border & 7;
-                pset(cx, cy, colors[border & 7]);
+                if (cx < 320) pset(cx, cy, colors[border & 7]);
             }
         }
 
@@ -532,21 +579,6 @@ public:
             case SDL_SCANCODE_9: key_press(4, 0x02, press); break;
             case SDL_SCANCODE_0: key_press(4, 0x01, press); break;
 
-            // Keypad
-            /*
-            case SDL_SCANCODE_KP_0: if (release) kbd_push(0xF0); kbd_push(0x70); break;
-            case SDL_SCANCODE_KP_1: if (release) kbd_push(0xF0); kbd_push(0x69); break;
-            case SDL_SCANCODE_KP_2: if (release) kbd_push(0xF0); kbd_push(0x72); break;
-            case SDL_SCANCODE_KP_3: if (release) kbd_push(0xF0); kbd_push(0x7A); break;
-            case SDL_SCANCODE_KP_4: if (release) kbd_push(0xF0); kbd_push(0x6B); break;
-            case SDL_SCANCODE_KP_5: if (release) kbd_push(0xF0); kbd_push(0x73); break;
-            case SDL_SCANCODE_KP_6: if (release) kbd_push(0xF0); kbd_push(0x74); break;
-            case SDL_SCANCODE_KP_7: if (release) kbd_push(0xF0); kbd_push(0x6C); break;
-            case SDL_SCANCODE_KP_8: if (release) kbd_push(0xF0); kbd_push(0x75); break;
-            case SDL_SCANCODE_KP_9: if (release) kbd_push(0xF0); kbd_push(0x7D); break;
-            */
-
-
             // Специальные символы
             case SDL_SCANCODE_GRAVE:        key_press(0, 0x01, press); key_press(3, 0x01, press); break; // SS+1 EDIT
             case SDL_SCANCODE_MINUS:        key_press(7, 0x02, press); key_press(6, 0x08, press); break; // -
@@ -578,6 +610,27 @@ public:
             case SDL_SCANCODE_KP_PERIOD:    break;
             case SDL_SCANCODE_SCROLLLOCK:   break;
 
+            case SDL_SCANCODE_UP:           key_press(0, 0x01, press); key_press(4, 0x08, press); break; // SS+7
+            case SDL_SCANCODE_DOWN:         key_press(0, 0x01, press); key_press(4, 0x10, press); break; // SS+6
+            case SDL_SCANCODE_LEFT:         key_press(0, 0x01, press); key_press(3, 0x10, press); break; // SS+5
+            case SDL_SCANCODE_RIGHT:        key_press(0, 0x01, press); key_press(4, 0x04, press); break; // SS+8
+
+            // Keypad
+            /*
+            case SDL_SCANCODE_KP_0: if (release) kbd_push(0xF0); kbd_push(0x70); break;
+            case SDL_SCANCODE_KP_1: if (release) kbd_push(0xF0); kbd_push(0x69); break;
+            case SDL_SCANCODE_KP_2: if (release) kbd_push(0xF0); kbd_push(0x72); break;
+            case SDL_SCANCODE_KP_3: if (release) kbd_push(0xF0); kbd_push(0x7A); break;
+            case SDL_SCANCODE_KP_4: if (release) kbd_push(0xF0); kbd_push(0x6B); break;
+            case SDL_SCANCODE_KP_5: if (release) kbd_push(0xF0); kbd_push(0x73); break;
+            case SDL_SCANCODE_KP_6: if (release) kbd_push(0xF0); kbd_push(0x74); break;
+            case SDL_SCANCODE_KP_7: if (release) kbd_push(0xF0); kbd_push(0x6C); break;
+            case SDL_SCANCODE_KP_8: if (release) kbd_push(0xF0); kbd_push(0x75); break;
+            case SDL_SCANCODE_KP_9: if (release) kbd_push(0xF0); kbd_push(0x7D); break;
+            */
+
+            case SDL_SCANCODE_F1:   loadbin("zexall", get_bank(0x8000)); break;
+
             // F1-F12 Клавиши
             /*
             case SDL_SCANCODE_F1:   if (release) kbd_push(0xF0); kbd_push(0x05); break;
@@ -608,11 +661,6 @@ public:
             case SDL_SCANCODE_DELETE:       kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x71); break;
             */
 
-            case SDL_SCANCODE_UP:           key_press(0, 0x01, press); key_press(4, 0x08, press); break; // SS+7
-            case SDL_SCANCODE_DOWN:         key_press(0, 0x01, press); key_press(4, 0x10, press); break; // SS+6
-            case SDL_SCANCODE_LEFT:         key_press(0, 0x01, press); key_press(3, 0x10, press); break; // SS+5
-            case SDL_SCANCODE_RIGHT:        key_press(0, 0x01, press); key_press(4, 0x04, press); break; // SS+8
-
             // Клавиша PrnScr
             /*
             case SDL_SCANCODE_PRINTSCREEN: {
@@ -641,6 +689,42 @@ public:
             }
             */
         }
+    }
+
+    // ================ СНАПШОТЫ И СОХРАНЕНИЯ ==========================
+
+    // Загрузка бинарника
+    void loadbin(const char* filename, int address) {
+
+        FILE* fp = fopen(filename, "rb");
+        if (fp == NULL) { printf("BINARY %s not exists\n", filename); exit(1); }
+        fseek(fp, 0, SEEK_END);
+        int fsize = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        fread(ram + address, 1, fsize, fp);
+        fclose(fp);
+    }
+
+    // Загрузка кастомного ROM в память
+    void loadrom(const char* filename, int bank) {
+
+        FILE* fp = fopen(filename, "rb");
+        if (fp == NULL) { printf("ROM %s not exists\n", filename); exit(1); }
+
+        // Затирать весь ROM старый, если он там был
+        if (bank != 3) {
+
+            int off = 16384*bank;
+            for (int i = 0; i < 16384; i++) rom[off + i] = 0;
+            fread(rom + off, 1, 16384, fp);
+
+        } else {
+
+            for (int i = 0; i < 16384; i++) rom[i + 0x8000] = 0;
+            fread(rom + 0x8000, 1, 16384, fp);
+        }
+
+        fclose(fp);
     }
 
     // ====================== DISASSEMBY 2000 ==========================

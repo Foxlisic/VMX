@@ -1,7 +1,7 @@
 VLIB=/usr/share/verilator/include
 
 all: app
-	./vmx > vmx.log
+	./vmx -u > vmx.log
 
 app: syn
 	g++ -Ofast -o vmx -I../app/roms -I$(VLIB) \
