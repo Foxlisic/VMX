@@ -9,6 +9,34 @@ static const uint32_t colors[16] =
     0x00FF00, 0x00FFFF, 0xFFFF00, 0xFFFFFF
 };
 
+// 96 символов по 4x8
+const uint8_t font4[384] = {
+    0x00,0x04,0x04,0x04,0x04,0x00,0x04,0x00,0x00,0xAA,0xAE,0x0A,0x0A,0x0E,0x0A,0x00,
+    0x40,0x4A,0xA2,0x44,0x24,0xA8,0x4A,0x40,0x40,0xA4,0x44,0xA0,0xA0,0xC0,0x60,0x00,
+    0x00,0x28,0x44,0x44,0x44,0x44,0x28,0x00,0x00,0xA4,0x44,0xEE,0x44,0xA4,0x00,0x00,
+    0x00,0x00,0x00,0x0E,0x00,0x40,0x40,0x80,0x00,0x02,0x02,0x04,0x04,0x48,0x48,0x00,
+    0x00,0x44,0xAC,0xE4,0xA4,0xA4,0x4E,0x00,0x00,0x4E,0xA2,0x24,0x42,0x8A,0xE4,0x00,
+    0x00,0x2E,0x68,0xAC,0xE2,0x2A,0x24,0x00,0x00,0x6E,0x82,0xC2,0xA4,0xA4,0x44,0x00,
+    0x00,0x44,0xAA,0x4A,0xA6,0xA2,0x4C,0x00,0x00,0x00,0x44,0x00,0x00,0x44,0x08,0x00,
+    0x00,0x00,0x2E,0x40,0x8E,0x40,0x20,0x00,0x00,0x04,0x8A,0x42,0x24,0x40,0x84,0x00,
+    0x00,0x44,0xAA,0xAA,0x8E,0x8A,0x6A,0x00,0x00,0xC4,0xAA,0xC8,0xA8,0xAA,0xC4,0x00,
+    0x00,0xCE,0xA8,0xAE,0xA8,0xA8,0xCE,0x00,0x00,0xE4,0x8A,0xE8,0x8A,0x8A,0x84,0x00,
+    0x00,0xAE,0xA4,0xE4,0xA4,0xA4,0xAE,0x00,0x00,0x2A,0x2A,0x2C,0x2A,0xAA,0x4A,0x00,
+    0x00,0x8A,0x8E,0x8A,0x8A,0x8A,0xEA,0x00,0x00,0x24,0xAA,0xEA,0xEA,0xAA,0x84,0x00,
+    0x00,0xC4,0xAA,0xAA,0xCA,0x8C,0x86,0x00,0x00,0xC4,0xAA,0xA4,0xC2,0xAA,0xA4,0x00,
+    0x00,0xEA,0x4A,0x4A,0x4A,0x4A,0x4E,0x00,0x00,0xAA,0xAA,0xAA,0xAA,0xAE,0x4A,0x00,
+    0x00,0xAA,0xAA,0x44,0xA4,0xA4,0xA4,0x00,0x00,0xE6,0x24,0x44,0x44,0x84,0xE6,0x00,
+    0x00,0x8C,0x84,0x44,0x44,0x24,0x2C,0x00,0x00,0x40,0xA0,0x00,0x00,0x00,0x00,0x0F,
+    0x00,0x80,0x4C,0x02,0x06,0x0A,0x06,0x00,0x00,0x80,0x86,0xC8,0xA8,0xA8,0xC6,0x00,
+    0x00,0x20,0x24,0x6A,0xAE,0xA8,0x66,0x00,0x00,0x20,0x46,0xEA,0x4A,0x46,0x42,0x0C,
+    0x00,0x84,0x80,0xCC,0xA4,0xA4,0xAE,0x00,0x00,0x28,0x08,0x6A,0x2C,0x2A,0x2A,0xC0,
+    0x00,0x40,0x4A,0x4E,0x4A,0x4A,0x4A,0x00,0x00,0x00,0xC4,0xAA,0xAA,0xAA,0xA4,0x00,
+    0x00,0x00,0xC6,0xAA,0xAA,0xC6,0x82,0x82,0x00,0x00,0x66,0x88,0x84,0x82,0x8C,0x00,
+    0x00,0x40,0x4A,0xEA,0x4A,0x4A,0x4E,0x00,0x00,0x00,0xAA,0xAA,0xAA,0xAE,0x4A,0x00,
+    0x00,0x00,0xAA,0xAA,0x4A,0xA6,0xA2,0x0C,0x02,0x04,0xE4,0x28,0x44,0x84,0xE2,0x00,
+    0x48,0x44,0x44,0x02,0x44,0x44,0x48,0x00,0x00,0x00,0xC0,0x60,0x00,0x00,0x00,0x00
+};
+
 const char* ds_mnemonics[256] = {
 
     /* 00 */    "nop",  "ld",   "ld",   "inc",  "inc",  "dec",  "ld",   "rlca",
@@ -117,6 +145,8 @@ protected:
     char    ds_operand[32];
     char    ds_prefix[16];
     int     ds_string[64];     // Адреса в строках
+
+    int     locx = 320, locy = 0;
 
     Vz80* core;
 
@@ -339,22 +369,6 @@ public:
         return 0;
     }
 
-    // Загрузка скриншота .scr
-    void loadScreen(const char* screenshot)
-    {
-        FILE* fp = fopen(screenshot, "rb");
-        if (fp) {
-
-            fread(ram + 0x4000*(port_7ffd & 0x08 ? 7 : 5), 1, 6144+768, fp);
-            fclose(fp);
-
-        } else {
-
-            printf("Screenshot not found\n");
-            exit(1);
-        }
-    }
-
     // Установка точки
     void pset(int x, int y, Uint32 cl)
     {
@@ -420,8 +434,8 @@ public:
     // 0x4000-0x7fff BANK 2
     // 0x8000-0xbfff BANK 5
     // 0xc000-0xffff BANK 0..7
-    int get_bank(int address) {
-
+    int get_bank(int address)
+    {
         int bank = 0;
         switch (address & 0xC000) {
 
@@ -435,8 +449,8 @@ public:
     }
 
     // Чтение байта
-    int read(int address) {
-
+    int read(int address)
+    {
         // Обращение к ROM 128k|48k (0 или 16384)
         if (address < 0x4000) {
             return trdos_latch ? rom[0x8000 + address] : rom[get_bank(address)];
@@ -446,8 +460,8 @@ public:
     }
 
     // Запись байта
-    void write(int address, int data) {
-
+    void write(int address, int data)
+    {
         address &= 0xFFFF;
         if (address < 0x4000) return;
 
@@ -455,8 +469,8 @@ public:
     }
 
     // Чтение из порта
-    int io_read(int port) {
-
+    int io_read(int port)
+    {
         // Порт #7FFD
         if (port == 0x7FFD) {
             return port_7ffd;
@@ -484,8 +498,8 @@ public:
     }
 
     // Запись в порт
-    void io_write(int port, int data) {
-
+    void io_write(int port, int data)
+    {
         if (port == 0x7ffd) {
 
             // Не менять бит D5 если он 1
@@ -511,8 +525,8 @@ public:
     }
 
     // Проверяется наличие входа и выхода из TRDOS
-    void trdos_handler(uint16_t pc) {
-
+    void trdos_handler(uint16_t pc)
+    {
         // Только 48k ROM разрешен
         if (port_7ffd & 0x10) {
 
@@ -524,8 +538,8 @@ public:
     }
 
     // Занесение нажатия в регистры
-    void key_press(int row, int mask, int press) {
-
+    void key_press(int row, int mask, int press)
+    {
         if (press) {
             key_states[ row ] &= ~mask;
         } else {
@@ -629,7 +643,7 @@ public:
             case SDL_SCANCODE_KP_9: if (release) kbd_push(0xF0); kbd_push(0x7D); break;
             */
 
-            case SDL_SCANCODE_F1:   loadbin("zexall", get_bank(0x8000)); break;
+            case SDL_SCANCODE_F1:   if (press) disasm_repaint(); break;
 
             // F1-F12 Клавиши
             /*
@@ -691,47 +705,49 @@ public:
         }
     }
 
-    // ================ СНАПШОТЫ И СОХРАНЕНИЯ ==========================
+    // ====================== ОКНО ОТЛАДЧИКА ===========================
 
-    // Загрузка бинарника
-    void loadbin(const char* filename, int address) {
-
-        FILE* fp = fopen(filename, "rb");
-        if (fp == NULL) { printf("BINARY %s not exists\n", filename); exit(1); }
-        fseek(fp, 0, SEEK_END);
-        int fsize = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        fread(ram + address, 1, fsize, fp);
-        fclose(fp);
+    void loc(int x, int y)
+    {
+        locx = 320 + 4*x;
+        locy = y*8;
     }
 
-    // Загрузка кастомного ROM в память
-    void loadrom(const char* filename, int bank) {
+    void printch(int x, int y, int ch, int fr = 0xFFFFFF, int bg = 0x000000)
+    {
+        for (int i = 0; i < 8; i++) {
 
-        FILE* fp = fopen(filename, "rb");
-        if (fp == NULL) { printf("ROM %s not exists\n", filename); exit(1); }
+            uint8_t a = font4[8*((ch - 32) >> 1) + i];
+            a = (ch & 1) ? a & 15 : a >> 4;
 
-        // Затирать весь ROM старый, если он там был
-        if (bank != 3) {
-
-            int off = 16384*bank;
-            for (int i = 0; i < 16384; i++) rom[off + i] = 0;
-            fread(rom + off, 1, 16384, fp);
-
-        } else {
-
-            for (int i = 0; i < 16384; i++) rom[i + 0x8000] = 0;
-            fread(rom + 0x8000, 1, 16384, fp);
+            for (int j = 0; j < 4; j++) {
+                pset(x + j, y + i, a & (16 >> j) ? fr : bg);
+            }
         }
+    }
 
-        fclose(fp);
+    void print(const char* s)
+    {
+        int i = 0;
+        while (s[i])
+        {
+            printch(locx, locy, s[i]);
+            locx += 4;
+            if (locx > 640) { locx = 320; locy += 8; }
+            i++;
+        }
+    }
+
+    void disasm_repaint()
+    {
+        // ..
     }
 
     // ====================== DISASSEMBY 2000 ==========================
 
     // Сформировать операнд (IX|IY+d)
-    void ixy_disp(int prefix) {
-
+    void ixy_disp(int prefix)
+    {
         int df = ds_fetch_byte();
 
         if (df & 0x80) {
@@ -744,8 +760,8 @@ public:
     }
 
     // Прочитать байт дизассемблера
-    int ds_fetch_byte() {
-
+    int ds_fetch_byte()
+    {
         int b = read(ds_ad);
         ds_ad = (ds_ad + 1) & 0xffff;
         ds_size++;
@@ -753,23 +769,23 @@ public:
     }
 
     // Прочитать слово дизассемблера
-    int ds_fetch_word() {
-
+    int ds_fetch_word()
+    {
         int l = ds_fetch_byte();
         int h = ds_fetch_byte();
         return (h<<8) | l;
     }
 
     // Прочитать относительный операнд
-    int ds_fetch_rel() {
-
+    int ds_fetch_rel()
+    {
         int r8 = ds_fetch_byte();
         return ((r8 & 0x80) ? r8 - 0x100 : r8) + ds_ad;
     }
 
     // Дизассемблирование 1 линии
-    int disasm(int addr) {
-
+    int disasm(int addr)
+    {
         int op, df;
         int prefix = 0;
 
@@ -1010,5 +1026,57 @@ public:
         for (int i = 0; i < strlen(ds_operand); i++) ds_operand[i] = toupper(ds_operand[i]);
 
         return ds_size;
+    }
+
+    // ================ СНАПШОТЫ И СОХРАНЕНИЯ ==========================
+
+    // Загрузка бинарника
+    void loadbin(const char* filename, int address)
+    {
+        FILE* fp = fopen(filename, "rb");
+        if (fp == NULL) { printf("BINARY %s not exists\n", filename); exit(1); }
+        fseek(fp, 0, SEEK_END);
+        int fsize = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        fread(ram + address, 1, fsize, fp);
+        fclose(fp);
+    }
+
+    // Загрузка кастомного ROM в память
+    void loadrom(const char* filename, int bank)
+    {
+        FILE* fp = fopen(filename, "rb");
+        if (fp == NULL) { printf("ROM %s not exists\n", filename); exit(1); }
+
+        // Затирать весь ROM старый, если он там был
+        if (bank != 3) {
+
+            int off = 16384*bank;
+            for (int i = 0; i < 16384; i++) rom[off + i] = 0;
+            fread(rom + off, 1, 16384, fp);
+
+        } else {
+
+            for (int i = 0; i < 16384; i++) rom[i + 0x8000] = 0;
+            fread(rom + 0x8000, 1, 16384, fp);
+        }
+
+        fclose(fp);
+    }
+
+    // Загрузка скриншота .scr
+    void loadScreen(const char* screenshot)
+    {
+        FILE* fp = fopen(screenshot, "rb");
+        if (fp) {
+
+            fread(ram + 0x4000*(port_7ffd & 0x08 ? 7 : 5), 1, 6144+768, fp);
+            fclose(fp);
+
+        } else {
+
+            printf("Screenshot not found\n");
+            exit(1);
+        }
     }
 };

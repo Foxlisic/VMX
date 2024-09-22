@@ -23,15 +23,21 @@ foreach ($in as $r)
 }
 
 $out = [];
+$hex = [];
 for ($i = 32; $i < 128; $i += 2)
 {
     for ($y = 0; $y < 8; $y++)
     {
         $a = $ch[$i  ][$y];
         $b = $ch[$i+1][$y] >> 4;
-        $out[] = chr($a | $b);
+        $c = $a | $b;
+        $out[] = chr($c);
+        $hex[] = sprintf("0x%02X", $c);
     }
 }
+
+file_put_contents("fonts.hex", join(",", $hex));
+file_put_contents("fonts.bin", join("", $out));
 
 $im = imagecreatetruecolor(384, 8);
 
