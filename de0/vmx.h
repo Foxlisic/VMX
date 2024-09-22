@@ -377,7 +377,7 @@ public:
         }
 
         // Запрос #IRQ, в compat режиме вызывается после 192-й линии
-        core->irq = (cycles >= 224*192 && cycles < (224+1)*192);
+        core->irq = (cycles >= 224*256 && cycles < (256+1)*224);
 
         core->clock = 0; core->eval();
         core->clock = 1; core->eval();
@@ -757,7 +757,7 @@ public:
         cpu_halt = 1;
 
         // Сначала, дочитать такты процессора
-        while (core->m0 == 0) { cpu_clock(0); ppu_clock(); ppu_clock(); };
+        while (core->m0 == 0) { cpu_clock(2*ppu_x + ppu_y*448); ppu_clock(); ppu_clock(); };
 
         // Потом прочесть все такты дальше
         do { cpu_clock(0); ppu_clock(); ppu_clock(); } while (core->m0 == 0);
