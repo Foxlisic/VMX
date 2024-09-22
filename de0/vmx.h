@@ -1,5 +1,10 @@
 #include <SDL2/SDL.h>
 
+enum SpecModel {
+    SPECTRUM_SINCLAIR = 1,
+    SPECTRUM_PENTAGON = 2,
+};
+
 // Цвета Спектрума
 static const uint32_t colors[16] =
 {
@@ -136,7 +141,12 @@ protected:
 
     uint8_t     debug_console = 0;
     uint8_t     debug_window  = 0;
+    uint16_t    debug_addr    = 0x0000;
+    uint16_t    debug_dump    = 0x0000;
+
+    uint8_t     cpu_halt = 0;
     uint8_t     compat = 1;
+    uint8_t     spectrum_model = SPECTRUM_PENTAGON;
 
     // Disassembly.2000
     int     ds_ad;             // Текущая временная позиция разбора инструкции
@@ -145,8 +155,9 @@ protected:
     char    ds_operand[32];
     char    ds_prefix[16];
     int     ds_string[64];     // Адреса в строках
+    int     ds_change[16];
 
-    int     locx = 320, locy = 0;
+    int     locx = 320, locy = 0, fr = 0x000000, bg = 0x008080;
 
     Vz80* core;
 
@@ -160,36 +171,6 @@ public:
         length      = (1000/50);        // 50 FPS
         pticks      = 0;
         port_7ffd   = 0x10;             // 48=0x10 128=0x00
-
-        int n = 1;
-
-        // Разбор входящих параметров
-        while (n < argc) {
-
-            if (argv[n][0] == '-') {
-
-                switch (argv[n][1])
-                {
-                    case '2': port_7ffd = 0x00; break;
-                    case 'd': debug_console = 1; break;
-                    case 'D': debug_window  = 1; width = 640; break;
-                    case 'u': compat = 0; break;
-                }
-            }
-
-            n++;
-        }
-
-        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-            exit(1);
-        }
-
-        SDL_ClearError();
-        sdl_window          = SDL_CreateWindow("ZXSpectrum Verilated Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, scale * width, scale * height, SDL_WINDOW_SHOWN);
-        sdl_renderer        = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_PRESENTVSYNC);
-        screen_buffer       = (Uint32*) malloc(width * height * sizeof(Uint32));
-        sdl_screen_texture  = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_BGRA32, SDL_TEXTUREACCESS_STREAMING, width, height);
-        SDL_SetTextureBlendMode(sdl_screen_texture, SDL_BLENDMODE_NONE);
 
         // Загрузка ROM
         for (int i = 0; i < 16384; i++) {
@@ -208,9 +189,43 @@ public:
             lutfb[y] = 32*((y & 0x38)>>3) + 256*(y&7) + 2048*(y>>6);
         }
 
+        int n = 1;
+
+        // Разбор входящих параметров
+        while (n < argc) {
+
+            if (argv[n][0] == '-') {
+
+                switch (argv[n][1])
+                {
+                    case '2': port_7ffd = 0x00; break;
+                    case 'd': debug_console = 1; break;
+                    case 'D': debug_window  = 1; width = 640; cpu_halt = 1; break;
+                    case 'u': compat = 0; break;
+                    case 'r': loadrom(argv[n+1], argv[n][2] - '0'); n++; break;
+                }
+            }
+
+            n++;
+        }
+
+        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+            exit(1);
+        }
+
+        SDL_ClearError();
+        sdl_window          = SDL_CreateWindow("ZXSpectrum Verilated Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, scale * width, scale * height, SDL_WINDOW_SHOWN);
+        sdl_renderer        = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_PRESENTVSYNC);
+        screen_buffer       = (Uint32*) malloc(width * height * sizeof(Uint32));
+        sdl_screen_texture  = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_BGRA32, SDL_TEXTUREACCESS_STREAMING, width, height);
+        SDL_SetTextureBlendMode(sdl_screen_texture, SDL_BLENDMODE_NONE);
+
         // Перезапуск процессора
         core = new Vz80;
         reset(0);
+
+        // Нарисовать окно отладчика
+        if (debug_window) disasm_repaint();
     }
 
     void reset(int reloadreg)
@@ -257,7 +272,7 @@ public:
         for (;;) {
 
             int cycles = 0;
-            Uint32 ticks = SDL_GetTicks();
+            Uint32 start = SDL_GetTicks();
 
             // Прием событий
             while (SDL_PollEvent(& evt)) {
@@ -278,69 +293,51 @@ public:
                 }
             }
 
-            ppu_x = ppu_y = 0;
-            Uint32 start = SDL_GetTicks();
-            uint8_t brk = 0;
+            // Исполнение ЛЮБЫХ действий только при запущенном процессоре
+            if (cpu_halt == 0) {
 
-            // 69888=Sinclair Standart Cycles
-            // 71680=Pentagonum
-            // Длина строки у каждого равна 224
-            int cycles_max = 71680;
+                ppu_x = ppu_y = 0;
+                uint8_t brk = 0;
 
-            // Один кадр
-            do {
+                // 69888=Sinclair Standart Cycles
+                // 71680=Pentagonum
+                // Длина строки у каждого равна 224
+                int cycles_max = (spectrum_model == SPECTRUM_PENTAGON) ? 71680 : 69888;
 
-                for (int i = 0; i < 1024; i++) {
+                // Один кадр
+                do {
 
-                    uint16_t A = core->address;
+                    for (int i = 0; i < 1024; i++) {
 
-                    // Чтение или запись в память
-                    if (core->we)     write(A, core->o_data);
-                    if (core->portwe) io_write(A, core->o_data);
+                        // Процессор остановлен
+                        if (cpu_halt) { brk = 1; break; }
 
-                    core->i_data = read(A);
-                    core->portin = io_read(A);
-
-                    if (core->m0) {
-
-                        trdos_handler(A);
-
-                        if (debug_console) {
+                        // Серия отладочных данных в консоли
+                        if (core->m0 && debug_console) {
                             disasm(core->address);
                             printf("[%05d] #%04X %s %s\n", cycles, core->address, ds_opcode, ds_operand);
                         }
+
+                        cpu_clock(cycles++);
+
+                        // В режиме совместимости подсчет циклов
+                        if (core->compat) {
+
+                            ppu_clock();
+                            ppu_clock();
+
+                            if (cycles >= cycles_max) { brk = 1; break; }
+                        }
                     }
 
-                    /*
-                    if ((A & 1) && (A != 0x7ffd) && (A != 0xfffd) && (A != 0xbffd)) {
-                        if (core->portrd) printf("RD %4x\n",     A);
-                        if (core->portwe) printf("WR %4x %2x\n", A, core->o_data);
-                    }
-                    */
+                } while (SDL_GetTicks() - start < length && (brk == 0));
 
-                    // Запрос #IRQ, в compat режиме вызывается после 192-й линии
-                    core->irq = (cycles >= 224*192 && cycles < (224+1)*192);
+                // Отрендерить один фрейм в режиме несовместимости
+                if (core->compat == 0) for (int i = 0; i < 2*cycles_max; i++) ppu_clock();
 
-                    core->clock = 0; core->eval();
-                    core->clock = 1; core->eval();
-                    cycles++;
-
-                    // В режиме совместимости подсчет циклов
-                    if (core->compat) {
-
-                        ppu_clock();
-                        ppu_clock();
-                        if (cycles >= cycles_max) { brk = 1; break; }
-                    }
-                }
-
-            } while (SDL_GetTicks() - start < length && (brk == 0));
-
-            // Отрендерить один фрейм в режиме несовместимости
-            if (core->compat == 0) for (int i = 0; i < 2*cycles_max; i++) ppu_clock();
-
-            // Мерцающие элементы
-            flash_state = (flash_state + 1) % 50;
+                // Мерцающие элементы
+                flash_state = (flash_state + 1) % 50;
+            }
 
             // В случае досрочного завершения кадра, ждать
             while (SDL_GetTicks() - start < length) SDL_Delay(1);
@@ -357,26 +354,33 @@ public:
         }
     }
 
-    // Убрать окно из памяти
-    int destroy()
+    void cpu_clock(int cycles)
     {
-        free(screen_buffer);
-        SDL_DestroyTexture(sdl_screen_texture);
-        SDL_FreeFormat(sdl_pixel_format);
-        SDL_DestroyRenderer(sdl_renderer);
-        SDL_DestroyWindow(sdl_window);
-        SDL_Quit();
-        return 0;
-    }
+        uint16_t A = core->address;
 
-    // Установка точки
-    void pset(int x, int y, Uint32 cl)
-    {
-        if (x < 0 || y < 0 || x >= width || y >= height) {
+        // Чтение или запись в память
+        if (core->we)     write(A, core->o_data);
+        if (core->portwe) io_write(A, core->o_data);
+
+        // Вход в TRDOS
+        if (core->m0) trdos_handler(A);
+
+        core->i_data = read(A);
+        core->portin = io_read(A);
+
+        // Инструкция HALT
+        if (core->m0 && core->i_data == 0x76 && debug_window && !cpu_halt) {
+
+            cpu_halt = 1;
+            disasm_repaint();
             return;
         }
 
-        screen_buffer[width*y + x] = cl;
+        // Запрос #IRQ, в compat режиме вызывается после 192-й линии
+        core->irq = (cycles >= 224*192 && cycles < (224+1)*192);
+
+        core->clock = 0; core->eval();
+        core->clock = 1; core->eval();
     }
 
     // Отсчитать количество тактов PPU
@@ -428,13 +432,38 @@ public:
         // Размер кадра равен [448 x 312]
         ppu_y = (ppu_y + (ppu_x == 447));
         ppu_x = (ppu_x + 1) % 448;
+
+        // Максимальное количество строк
+        if (ppu_y == (spectrum_model == SPECTRUM_PENTAGON ? 320 : 312)) ppu_y = 0;
+    }
+
+    // Убрать окно из памяти
+    int destroy()
+    {
+        free(screen_buffer);
+        SDL_DestroyTexture(sdl_screen_texture);
+        SDL_FreeFormat(sdl_pixel_format);
+        SDL_DestroyRenderer(sdl_renderer);
+        SDL_DestroyWindow(sdl_window);
+        SDL_Quit();
+        return 0;
+    }
+
+    // Установка точки
+    void pset(int x, int y, Uint32 cl)
+    {
+        if (x < 0 || y < 0 || x >= width || y >= height) {
+            return;
+        }
+
+        screen_buffer[width*y + x] = cl;
     }
 
     // 0x0000-0x3fff ROM
     // 0x4000-0x7fff BANK 2
     // 0x8000-0xbfff BANK 5
     // 0xc000-0xffff BANK 0..7
-    int get_bank(int address)
+    int get_bank(int address, int show_bank_id = 0)
     {
         int bank = 0;
         switch (address & 0xC000) {
@@ -445,7 +474,7 @@ public:
             case 0xC000: bank = (port_7ffd & 7); break;
         }
 
-        return bank*16384 + (address & 0x3FFF);
+        return show_bank_id ? bank : bank*16384 + (address & 0x3FFF);
     }
 
     // Чтение байта
@@ -522,6 +551,23 @@ public:
             border  = (data & 7);
             port_fe = data;
         }
+    }
+
+    // Загрузка регистров перед переустановкой CPU state
+    void reloadRegisters()
+    {
+        core->_bc = core->bc; core->_bc_prime = core->bc_prime;
+        core->_de = core->de; core->_de_prime = core->de_prime;
+        core->_hl = core->hl; core->_hl_prime = core->hl_prime;
+        core->_af = core->af; core->_af_prime = core->af_prime;
+        core->_ix = core->ix;
+        core->_iy = core->iy;
+        core->_pc = core->pc;
+        core->_sp = core->sp;
+        core->_ir = core->ir;
+        core->_i_mode = core->i_mode;
+        core->_iff1   = core->iff1;
+        core->_iff2   = core->iff2;
     }
 
     // Проверяется наличие входа и выхода из TRDOS
@@ -644,36 +690,8 @@ public:
             */
 
             case SDL_SCANCODE_F1:   if (press) disasm_repaint(); break;
-
-            // F1-F12 Клавиши
-            /*
-            case SDL_SCANCODE_F1:   if (release) kbd_push(0xF0); kbd_push(0x05); break;
-            case SDL_SCANCODE_F2:   if (release) kbd_push(0xF0); kbd_push(0x06); break;
-            case SDL_SCANCODE_F3:   if (release) kbd_push(0xF0); kbd_push(0x04); break;
-            case SDL_SCANCODE_F4:   if (release) kbd_push(0xF0); kbd_push(0x0C); break;
-            case SDL_SCANCODE_F5:   if (release) kbd_push(0xF0); kbd_push(0x03); break;
-            case SDL_SCANCODE_F6:   if (release) kbd_push(0xF0); kbd_push(0x0B); break;
-            case SDL_SCANCODE_F7:   if (release) kbd_push(0xF0); kbd_push(0x83); break;
-            case SDL_SCANCODE_F8:   if (release) kbd_push(0xF0); kbd_push(0x0A); break;
-            case SDL_SCANCODE_F9:   if (release) kbd_push(0xF0); kbd_push(0x01); break;
-            case SDL_SCANCODE_F10:  if (release) kbd_push(0xF0); kbd_push(0x09); break;
-            case SDL_SCANCODE_F11:  if (release) kbd_push(0xF0); kbd_push(0x78); break;
-            case SDL_SCANCODE_F12:  if (release) kbd_push(0xF0); kbd_push(0x07); break;
-
-            // Расширенные клавиши
-            case SDL_SCANCODE_LGUI:         kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x1F); break;
-            case SDL_SCANCODE_RGUI:         kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x27); break;
-            case SDL_SCANCODE_APPLICATION:  kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x2F); break;
-            case SDL_SCANCODE_RCTRL:        kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x14); break;
-            case SDL_SCANCODE_RALT:         kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x11); break;
-
-            case SDL_SCANCODE_INSERT:       kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x70); break;
-            case SDL_SCANCODE_HOME:         kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x6C); break;
-            case SDL_SCANCODE_END:          kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x69); break;
-            case SDL_SCANCODE_PAGEUP:       kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x7D); break;
-            case SDL_SCANCODE_PAGEDOWN:     kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x7A); break;
-            case SDL_SCANCODE_DELETE:       kbd_push(0xE0); if (release) kbd_push(0xF0); kbd_push(0x71); break;
-            */
+            case SDL_SCANCODE_F7:   if (press) disasm_step(); break;
+            case SDL_SCANCODE_F9:   if (press) disasm_detach(); break;
 
             // Клавиша PrnScr
             /*
@@ -707,13 +725,90 @@ public:
 
     // ====================== ОКНО ОТЛАДЧИКА ===========================
 
+    // Выполнить один шаг дизассемблера
+    void disasm_step()
+    {
+        if (debug_window == 0) return;
+
+        // Состояние до
+        uint16_t state1[16] = {
+            core->bc, core->bc_prime,
+            core->de, core->de_prime,
+            core->hl, core->hl_prime,
+            core->af, core->af_prime,
+            core->ix,
+            core->iy,
+            core->pc,
+            core->sp,
+            (uint16_t)(core->ir & 0xFF00),
+            core->i_mode,
+            core->iff1,
+            core->iff2,
+        };
+
+        cpu_halt = 1;
+
+        // Сначала, дочитать такты процессора
+        while (core->m0 == 0) { cpu_clock(0); ppu_clock(); ppu_clock(); };
+
+        // Потом прочесть все такты дальше
+        do { cpu_clock(0); ppu_clock(); ppu_clock(); } while (core->m0 == 0);
+
+        // Инструкция HALT
+        if (read(core->address) == 0x76) {
+
+            reloadRegisters();
+            core->_pc++;
+            reset(1);
+        }
+
+        // Состояние после
+        uint16_t state2[16] = {
+            core->bc, core->bc_prime,
+            core->de, core->de_prime,
+            core->hl, core->hl_prime,
+            core->af, core->af_prime,
+            core->ix,
+            core->iy,
+            core->pc,
+            core->sp,
+            (uint16_t)(core->ir & 0xFF00),
+            core->i_mode,
+            core->iff1,
+            core->iff2,
+        };
+
+        for (int i = 0; i < 16; i++) ds_change[i] = (state1[i] != state2[i]);
+
+        disasm_repaint();
+    }
+
+    // Запуск программы
+    void disasm_detach()
+    {
+        if (debug_window == 0) return;
+
+        if (cpu_halt) {
+
+            cpu_halt = 0;
+            for (int y = 0; y < 240; y++)
+            for (int x = y & 1; x < 320; x += 2)
+                pset(320 + x, y, 0);
+
+        } else {
+
+            cpu_halt = 1;
+            disasm_repaint();
+        }
+    }
+
     void loc(int x, int y)
     {
         locx = 320 + 4*x;
         locy = y*8;
     }
 
-    void printch(int x, int y, int ch, int fr = 0xFFFFFF, int bg = 0x000000)
+    void printch(int x, int y, int ch)
     {
         for (int i = 0; i < 8; i++) {
 
@@ -738,9 +833,136 @@ public:
         }
     }
 
+    // Перерисовать дизассемблер
     void disasm_repaint()
     {
-        // ..
+        char buf[256];
+        char cht[9];
+
+        int _black = 0x000000;
+        int _white = 0xFFFFFF;
+        int _blue  = 0x0000A0;
+        int _cyan  = 0x00A0A0;
+
+        bg = _cyan;
+
+        // Очистка экрана в цвет
+        for (int y = 0;   y <  320; y++) for (int x = 320; x < 640; x++) pset(x, y, _cyan);
+        for (int x = 322; x <  638; x++) { pset(x,   2,  _white); pset(x, 238, _white); }
+        for (int x = 324; x <  636; x++) { pset(x,   4,  _white); pset(x, 236, _white); }
+        for (int y = 2;   y <= 238; y++) { pset(322, y,  _white); pset(638, y, _white); }
+        for (int y = 4;   y <= 236; y++) { pset(324, y,  _white); pset(636, y, _white); pset(450, y, _white); pset(452, y, _white); }
+        for (int x = 452; x <  636; x++) { pset(x,   98, _white); pset(x, 100, _white); }
+
+        int a = debug_addr, b;
+        int dsize, match = 0;
+
+        do {
+
+            // Вывести ассемблерный листинг
+            for (int i = 0; i < 28; i++) {
+
+                b = get_bank(a, 1);
+
+                // Выделение текущей строки
+                if (a == core->pc) { match = 1; fr = _white; bg = _blue; } else { fr = _black; bg = _cyan; }
+
+                dsize = disasm(a, 18);
+                loc(2, i + 1); sprintf(buf, "%c%d:%04X %s %s", ((a == core->pc) ? '#' : ' '), b, a, ds_opcode, ds_operand); print(buf);
+                a += dsize;
+            }
+
+            if (match == 0) { a = debug_addr = core->pc; }
+
+        } while (match == 0);
+
+
+        bg = _cyan;
+
+        loc(34, 1);
+        fr = _black; print("BC ");
+        fr = ds_change[0] ? _white : _black; sprintf(buf, "%04X ", core->bc); print(buf);
+        fr = ds_change[1] ? _white : _black; sprintf(buf, "%04X ", core->bc_prime); print(buf);
+
+        loc(34, 2);
+        fr = _black; print("DE ");
+        fr = ds_change[2] ? _white : _black; sprintf(buf, "%04X ", core->de); print(buf);
+        fr = ds_change[3] ? _white : _black; sprintf(buf, "%04X ", core->de_prime); print(buf);
+
+        loc(34, 3);
+        fr = _black; print("HL ");
+        fr = ds_change[4] ? _white : _black; sprintf(buf, "%04X ", core->hl); print(buf);
+        fr = ds_change[5] ? _white : _black; sprintf(buf, "%04X ", core->hl_prime); print(buf);
+
+        loc(34, 4);
+        fr = _black; print("AF ");
+        fr = ds_change[6] ? _white : _black; sprintf(buf, "%04X ", core->af); print(buf);
+        fr = ds_change[7] ? _white : _black; sprintf(buf, "%04X ", core->af_prime); print(buf);
+
+        loc(34, 5);  fr = _black; print("IX "); fr = ds_change[8] ? _white : _black; sprintf(buf, "%04X", core->ix); print(buf);
+        loc(34, 6);  fr = _black; print("IY "); fr = ds_change[9] ? _white : _black; sprintf(buf, "%04X", core->iy); print(buf);
+        loc(34, 7);  fr = _black; print("IR "); fr = ds_change[10] ? _white : _black; sprintf(buf, "%04X", core->ir); print(buf);
+        loc(34, 8);  fr = _black; print("SP "); fr = ds_change[11] ? _white : _black; sprintf(buf, "%04X", core->sp); print(buf);
+        loc(34, 9);  fr = _black; print("PC "); fr = ds_change[12] ? _white : _black; sprintf(buf, "%04X", core->pc); print(buf);
+        loc(34, 10); fr = _black; print("IMODE "); fr = ds_change[13] ? _white : _black; sprintf(buf, "%d", core->i_mode); print(buf);
+        loc(34, 11); fr = _black; print("IFF12 "); fr = ds_change[14] || ds_change[15] ? _white : _black; sprintf(buf, "%d %d", core->iff1, core->iff2); print(buf);
+
+        fr = _black;
+
+        // Дамп
+        for (int i = 0; i < 16; i++) {
+
+            a = debug_dump + 8*i;
+            b = get_bank(a, 1);
+
+            loc(34, i + 13); sprintf(buf, "%d:%04X ", b, a); print(buf);
+            for (int j = 0; j < 8; j++) {
+
+                int t = read(a + j);
+                sprintf(buf, "%02X ", t);
+                print(buf);
+
+                cht[j] = t >= 0x20 && t <= 0x7F ? t : ' ';
+            }
+
+            cht[8] = 0; print(cht);
+        }
+
+        // Стек
+        for (int i = 0; i < 11; i++) {
+
+            uint16_t sp = core->sp + i*2;
+
+            loc(73, i + 1);
+            sprintf(buf, "%c%04X", (sp == core->sp ? '>' : ' '), read(sp) + 256*read(sp+1)); print(buf);
+        }
+
+        // Вертикальные обрамляющие полоски
+        for (int y = 4; y < 98; y++)    { pset(608, y, _white); pset(610, y, _white); }
+        for (int y = 100; y < 236; y++) { pset(615, y, _white); pset(617, y, _white); }
+
+        // Вывод состояния флагов
+        loc(75, 13); print(core->af & 0x8000 ? "S 1" : "s .");
+        loc(75, 14); print(core->af & 0x4000 ? "Z 1" : "z .");
+        loc(75, 15); print(core->af & 0x2000 ? "5 1" : "5 .");
+        loc(75, 16); print(core->af & 0x1000 ? "H 1" : "h .");
+        loc(75, 17); print(core->af & 0x0800 ? "3 1" : "3 .");
+        loc(75, 18); print(core->af & 0x0400 ? "P 1" : "p .");
+        loc(75, 19); print(core->af & 0x0200 ? "N 1" : "n .");
+        loc(75, 20); print(core->af & 0x0100 ? "C 1" : "c .");
+
+        // Текущее положение луча
+        loc(75, 22); print("ULA");
+        loc(75, 23); sprintf(buf, "%03d", ppu_x); print(buf);
+        loc(75, 24); sprintf(buf, "%03d", ppu_y); print(buf);
+
+        // Подписи
+        fr = _white;
+        bg = _blue;  loc(2,   0); print(" Asm ");
+        bg = _cyan;  loc(34,  0); print(" Reg ");
+        bg = _cyan;  loc(34, 12); print(" Dump ");
+        bg = _cyan;  loc(73,  0); print(" Stck ");
+        bg = _cyan;  loc(75, 12); print(" F ");
     }
 
     // ====================== DISASSEMBY 2000 ==========================
@@ -773,7 +995,7 @@ public:
     {
         int l = ds_fetch_byte();
         int h = ds_fetch_byte();
-        return (h<<8) | l;
+        return (h << 8) | l;
     }
 
     // Прочитать относительный операнд
@@ -784,7 +1006,7 @@ public:
     }
 
     // Дизассемблирование 1 линии
-    int disasm(int addr)
+    int disasm(int addr, int oppad = 0)
     {
         int op, df;
         int prefix = 0;
@@ -863,9 +1085,7 @@ public:
                 default:
 
                     sprintf(ds_opcode, "undef?"); break;
-
             }
-
         }
         else if (op == 0xCB) {
 
@@ -1015,15 +1235,19 @@ public:
             else if ((op & 0xcb) == 0xc1) sprintf(ds_operand, "%s", ds_reg16af[ ((op & 0x30) >> 4) + prefix*4 ] );
         }
 
-        int ds_opcode_len = strlen(ds_opcode);
-        int ds_opcode_pad = ds_opcode_len < 5 ? 5 : ds_opcode_len + 1;
+        int ds_opcode_len  = strlen(ds_opcode);
+        int ds_operand_len = strlen(ds_operand);
+        int ds_opcode_pad  = ds_opcode_len < 5 ? 5 : ds_opcode_len + 1;
+        int ds_operand_pad = oppad > ds_operand_len ? oppad : ds_operand_len;
 
         // Привести в порядок
         for (int i = 0; i <= ds_opcode_pad; i++) {
              ds_opcode[i] = i < ds_opcode_len ? toupper(ds_opcode[i]) : (i == ds_opcode_pad-1 ? 0 : ' ');
          }
 
-        for (int i = 0; i < strlen(ds_operand); i++) ds_operand[i] = toupper(ds_operand[i]);
+        for (int i = 0; i <= ds_operand_pad; i++) {
+            ds_operand[i] = i < ds_operand_len ? toupper(ds_operand[i]) : (i == ds_operand_pad-1 ? 0 : ' ');
+        }
 
         return ds_size;
     }
@@ -1045,22 +1269,15 @@ public:
     // Загрузка кастомного ROM в память
     void loadrom(const char* filename, int bank)
     {
+        if (bank >= 4) return;
+
         FILE* fp = fopen(filename, "rb");
         if (fp == NULL) { printf("ROM %s not exists\n", filename); exit(1); }
 
         // Затирать весь ROM старый, если он там был
-        if (bank != 3) {
-
-            int off = 16384*bank;
-            for (int i = 0; i < 16384; i++) rom[off + i] = 0;
-            fread(rom + off, 1, 16384, fp);
-
-        } else {
-
-            for (int i = 0; i < 16384; i++) rom[i + 0x8000] = 0;
-            fread(rom + 0x8000, 1, 16384, fp);
-        }
-
+        int off = 16384*bank;
+        for (int i = 0; i < 16384; i++) rom[off + i] = 0;
+        fread(rom + off, 1, 16384, fp);
         fclose(fp);
     }
 

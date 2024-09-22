@@ -30,6 +30,7 @@ module z80
     input        [15:0] _bc_prime,
     input        [15:0] _de_prime,
     input        [15:0] _hl_prime,
+    input        [15:0] _af_prime,
     input        [15:0] _ix,
     input        [15:0] _iy,
     input        [15:0] _pc,
@@ -51,13 +52,13 @@ module z80
     output  reg  [15:0] hl_prime,
     output  reg  [15:0] af_prime,
     // Индексные регистры
-    output  reg [15:0]  ix,
-    output  reg [15:0]  iy,
+    output  reg  [15:0] ix,
+    output  reg  [15:0] iy,
     // Регистры управления программой
-    output  reg [15:0]  pc,
-    output  reg [15:0]  sp,
-    output  reg [15:0]  ir,
-    output  reg [ 1:0]  i_mode,
+    output  reg  [15:0] pc,
+    output  reg  [15:0] sp,
+    output  reg  [15:0] ir,
+    output  reg  [ 1:0] i_mode,
     output  reg         iff1,
     output  reg         iff2
     // -----------------------------------------------------------------------------
@@ -105,12 +106,13 @@ if (compat && delay) delay <= delay - 1;
 else if (reset_n == 1'b0) begin
     i_mode      <= _i_mode;
     ir          <= _ir;
+    pc          <= _pc;
     bus         <= 0;
     t_state     <= 0;
     set_prefix  <= 0;
     hptr        <= 0;
-    iff1        <= _iff1; iff1_ <= 1'b0;
-    iff2        <= _iff2; iff2_ <= 1'b0;
+    iff1        <= _iff1; iff1_ <= _iff1;
+    iff2        <= _iff2; iff2_ <= _iff2;
 end
 // Обработка прерывания
 else if (irq_process) case (t_state)
@@ -1327,11 +1329,11 @@ wire [7:0] rsop =
 // -----------------------------------------------------------------------------
 always @(negedge clock)
 if (reset_n == 1'b0) begin
-    af <= _af;
-    sp <= _sp;
     bc <= _bc; bc_prime <= _bc_prime;
     de <= _de; de_prime <= _de_prime;
     hl <= _hl; hl_prime <= _hl_prime;
+    af <= _af; af_prime <= _af_prime;
+    sp <= _sp;
     ix <= _ix;
     iy <= _iy;
 end
