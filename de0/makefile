@@ -1,8 +1,10 @@
 VLIB=/usr/share/verilator/include
 
-all: app
-	./vmx -u > vmx.log
-
+all: tmp
+run:
+	./vmx -D > vmx.log
+tmp:
+	php tmp.php
 app: syn
 	g++ -Ofast -o vmx -I../app/roms -I$(VLIB) \
 		-Wno-unused-result \
