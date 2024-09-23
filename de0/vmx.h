@@ -138,6 +138,7 @@ protected:
     uint8_t     screen[352][312];
     uint8_t     port_7ffd, border, flash_state = 0;
     uint8_t     trdos_latch = 0, port_fe = 0;
+    uint32_t    total_tstates = 0;
 
     uint8_t     debug_console = 0;
     uint8_t     debug_window  = 0;
@@ -381,6 +382,8 @@ public:
 
         core->clock = 0; core->eval();
         core->clock = 1; core->eval();
+
+        total_tstates++;
     }
 
     // Полное обновление экрана
@@ -965,8 +968,10 @@ public:
         loc(75, 23); sprintf(buf, "%03d", ppu_x); print(buf);
         loc(75, 24); sprintf(buf, "%03d", ppu_y); print(buf);
 
-        // Подписи
         fr = _white;
+
+        // Подписи
+        loc(22, 0); sprintf(buf, " %08X ", total_tstates); print(buf);
         bg = _blue;  loc(2,   0); print(" Asm ");
         bg = _cyan;  loc(34,  0); print(" Reg ");
         bg = _cyan;  loc(34, 12); print(" Dump ");

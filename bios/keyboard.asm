@@ -48,8 +48,24 @@ kbd_irq:
         and     a, a
         jr      z, .s2          ; CAPS или SHIFT
 
-        halt
-
+        ;halt
+        push    de
+        push    hl
+        ld      hl, KEYBFIFO    ; Ссылка на FIFO
+        ld      d, 0
+        ld      e, (hl)         ; Существующее количество данных
+        push    af              ; Проверка на превышение размера буфера
+        ld      a, e
+        cp      $6
+        jr      nz, .s5
+        dec     (hl)            ; -1 Откатить
+.s5:    inc     (hl)            ; +1
+        pop     af
+        add     hl, de          ; Переместить указатель для сохранения
+        inc     hl
+        ld      (hl), a         ; Сохранить новый код клавиши
+        pop     hl
+        pop     de
 .s2:    pop     af
 .s1:    inc     de
         pop     bc
