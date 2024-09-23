@@ -85,10 +85,6 @@ assign SD_DATA[0] = 1'bZ;
 assign GPIO_1[35] = 1'b0;
 assign GPIO_1[29] = spkr;
 
-// SW[0] =0 Быстрый; =1 Совместимый режим
-// SW[1] =0 60; =1 50 Герц
-// SW[2] =0 25 Mhz; =1 4.3 Mhz
-
 // Частоты
 wire        locked;
 reg         reset_n;
@@ -166,9 +162,9 @@ always @(posedge clock_cpu) reset_n <= locked & RESET_N;
 clockdiv ClockDivUnit
 (
     .reset_n    (reset_n),
-    .active     (1'b1), // ~SW[2]
     .clock      (clock_cpu),
-    .freq       (43),  // 4.3 Mhz
+    .active     (1'b1),
+    .freq       (35),           // 3.5 Mhz
     .fref       (250),
     .hold       (hold)
 );
@@ -182,7 +178,7 @@ z80 Z80Tb
     // Основной интерфейс
     .clock      (clock_cpu),
     .reset_n    (reset_n),
-    .compat     (1'b1),         // =0 Быстрый режим =1 Совместимый SW[0]
+    .compat     (1'b1),         // =0 Быстрый режим =1 Совместимый
     .hold       (hold),         // =1 Активен =0 Ожидание
     .irq        (irq),
     .address    (address),
