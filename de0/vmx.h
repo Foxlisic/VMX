@@ -660,7 +660,7 @@ public:
             case SDL_SCANCODE_SLASH:        break;
             case SDL_SCANCODE_BACKSPACE:    key_press(0, 0x01, press); key_press(4, 0x01, press); break; // SS+0 BS
             case SDL_SCANCODE_SPACE:        key_press(7, 0x01, press); break;
-            case SDL_SCANCODE_TAB:          key_press(0, 0x01, press); key_press(7, 0x02, press); break; //  SS+CS
+            case SDL_SCANCODE_TAB:          key_press(0, 0x01, press); key_press(7, 0x02, press); break; // SS+CS
             case SDL_SCANCODE_CAPSLOCK:     key_press(0, 0x01, press); key_press(3, 0x02, press); break; // SS+2 CAP (DANGER)
             case SDL_SCANCODE_LSHIFT:       key_press(0, 0x01, press); break;
             case SDL_SCANCODE_LCTRL:        break;
