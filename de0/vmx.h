@@ -42,6 +42,18 @@ const uint8_t font4[384] = {
     0x48,0x44,0x44,0x02,0x44,0x44,0x48,0x00,0x00,0x00,0xC0,0x60,0x00,0x00,0x00,0x00
 };
 
+
+
+enum Regs16Ref {
+
+    R__  = 0,
+    R_BC = 1,
+    R_DE = 2,
+    R_HL = 3,
+    R_SP = 4,
+    R_AF = 5
+};
+
 const char* ds_mnemonics[256] = {
 
     /* 00 */    "nop",  "ld",   "ld",   "inc",  "inc",  "dec",  "ld",   "rlca",
@@ -79,6 +91,42 @@ const char* ds_mnemonics[256] = {
     /* E8 */    "ret",   "jp",  "jp",   "ex",   "call", "$",    "xor",  "rst",
     /* F0 */    "ret",   "pop", "jp",   "di",   "call", "push", "or",   "rst",
     /* F8 */    "ret",   "ld",  "jp",   "ei",   "call", "$",    "cp",   "rst"
+};
+
+const char ds_registers16[256] = {
+
+    /* 00 */    R__,    R_BC,   R_BC,   R_BC,   R__,    R__,    R__,    R__,
+    /* 08 */    R__,    R_BC,   R_BC,   R_BC,   R__,    R__,    R__,    R__,
+    /* 10 */    R__,    R_DE,   R_DE,   R_DE,   R__,    R__,    R__,    R__,
+    /* 18 */    R__,    R_DE,   R_DE,   R_DE,   R__,    R__,    R__,    R__,
+    /* 20 */    R__,    R_HL,   R_HL,   R_HL,   R__,    R__,    R__,    R__,
+    /* 28 */    R__,    R_HL,   R_HL,   R_HL,   R__,    R__,    R__,    R__,
+    /* 30 */    R__,    R_SP,   R_SP,   R_SP,   R__,    R__,    R_HL,   R__,
+    /* 38 */    R__,    R_SP,   R_SP,   R_SP,   R__,    R__,    R__,    R__,
+    /* 40 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 48 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 50 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 58 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 60 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 68 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 70 */    R__,    R__,    R__,    R__,    R__,    R__,    R__,    R__,
+    /* 78 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 80 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 88 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 90 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* 98 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* A0 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* A8 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* B0 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* B8 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
+    /* C0 */    R__,   R_BC,    R__,    R__,    R__,    R_BC,   R__,    R__,
+    /* C8 */    R__,   R__,     R__,    R__,    R__,    R__,    R__,    R__,
+    /* D0 */    R__,   R_DE,    R__,    R__,    R__,    R_BC,   R__,    R__,
+    /* D8 */    R__,   R__,     R__,    R__,    R__,    R__,    R__,    R__,
+    /* E0 */    R__,   R_HL,    R__,    R__,    R__,    R_BC,   R__,    R__,
+    /* E8 */    R__,   R_HL,    R__,    R__,    R__,    R__,    R__,    R__,
+    /* F0 */    R__,   R_AF,    R__,    R__,    R__,    R_BC,   R__,    R__,
+    /* F8 */    R__,   R__,     R__,    R__,    R__,    R__,    R__,    R__
 };
 
 const char* ds_reg8[3*8] = {
@@ -144,6 +192,7 @@ protected:
     uint8_t     debug_window  = 0;
     uint16_t    debug_addr    = 0x0000;
     uint16_t    debug_dump    = 0x0000;
+    uint16_t    ds_dump_address = 0x0000;
 
     uint8_t     cpu_halt = 0;
     uint8_t     compat = 1;
@@ -488,7 +537,7 @@ public:
     }
 
     // Чтение байта
-    int read(int address)
+    int read(uint16_t address)
     {
         // Обращение к ROM 128k|48k (0 или 16384)
         if (address < 0x4000) {
@@ -699,7 +748,7 @@ public:
             case SDL_SCANCODE_KP_9: if (release) kbd_push(0xF0); kbd_push(0x7D); break;
             */
 
-            case SDL_SCANCODE_F1:   if (press) disasm_repaint(); break;
+            case SDL_SCANCODE_F1:   if (press) { debug_dump = ds_dump_address; disasm_repaint(); } break;
             case SDL_SCANCODE_F2:   if (press) update_screen(); break;
             case SDL_SCANCODE_F7:   if (press) disasm_step(); break;
             case SDL_SCANCODE_F9:   if (press) disasm_detach(); break;
@@ -855,6 +904,8 @@ public:
         int _blue  = 0x0000A0;
         int _cyan  = 0x00A0A0;
 
+        int _reg = 0;
+
         bg = _cyan;
 
         // Очистка экрана в цвет
@@ -873,21 +924,37 @@ public:
             // Вывести ассемблерный листинг
             for (int i = 0; i < 28; i++) {
 
+                char _ccc = ' ';
+
                 ds_string[i] = a;
                 b = get_bank(a, 1);
 
                 // Выделение текущей строки
-                if (a == core->pc) { match = 1; fr = _white; bg = _blue; } else { fr = _black; bg = _cyan; }
+                if (a == core->pc) {
+
+                    match = 1;
+                    fr = _white;
+                    bg = _blue;
+
+                    _ccc = ds_cond_check(a);
+                    _ccc = (_ccc < 0 ? '^' : (_ccc > 0 ? 'v' : ' '));
+
+                    // Читать регистры
+                    _reg = ds_registers16[read(a)];
+
+                } else {
+                    fr = _black;
+                    bg = _cyan;
+                }
 
                 dsize = disasm(a, 18);
-                loc(2, i + 1); sprintf(buf, "%c%d:%04X %s %s", ((a == core->pc) ? '#' : ' '), b, a, ds_opcode, ds_operand); print(buf);
+                loc(2, i + 1); sprintf(buf, "%c%d:%04X%c%s %s", ((a == core->pc) ? '#' : ' '), b, a, _ccc, ds_opcode, ds_operand); print(buf);
                 a += dsize;
             }
 
             if (match == 0) { a = debug_addr = core->pc; }
 
         } while (match == 0);
-
 
         bg = _cyan;
 
@@ -924,7 +991,7 @@ public:
         // Дамп
         for (int i = 0; i < 16; i++) {
 
-            a = debug_dump + 8*i;
+            a = (debug_dump + 8*i) & 0xFFFF;
             b = get_bank(a, 1);
 
             loc(34, i + 13); sprintf(buf, "%d:%04X ", b, a); print(buf);
@@ -972,6 +1039,23 @@ public:
 
         // Подписи
         loc(22, 0); sprintf(buf, " %08X ", total_tstates); print(buf);
+
+        // Какой сейчас регистр читается
+        if (_reg) {
+
+            loc(8, 0);
+            switch (_reg) {
+
+                case 1: ds_dump_address = core->bc; sprintf(buf, " BC %04X=%02X ", core->bc, read(core->bc)); break;
+                case 2: ds_dump_address = core->de; sprintf(buf, " DE %04X=%02X ", core->de, read(core->de)); break;
+                case 3: ds_dump_address = core->hl; sprintf(buf, " HL %04X=%02X ", core->hl, read(core->hl)); break;
+                case 4: ds_dump_address = core->sp; sprintf(buf, " SP %04X=%02X ", core->sp, read(core->sp)); break;
+                case 5: ds_dump_address = core->af; sprintf(buf, " AF %04X ", core->af); break;
+            }
+
+            print(buf);
+        }
+
         bg = _blue;  loc(2,   0); print(" Asm ");
         bg = _cyan;  loc(34,  0); print(" Reg ");
         bg = _cyan;  loc(34, 12); print(" Dump ");
@@ -980,6 +1064,57 @@ public:
     }
 
     // ====================== DISASSEMBY 2000 ==========================
+
+    // Проверка, куда ведет условная инструкция
+    int ds_cond_check(int a)
+    {
+        int _a  = read(a);
+        int _b  = read(a + 1);
+        int _r8 = (_b & 0x80 ? -1 : 1);
+        int _wd = read(a) + 256*read(a);
+        int _sp = read(core->sp) + 256*read(core->sp+1);
+
+        char _cond[8] = {
+            (char)(core->af & 0x4000 ? 0 : 1), // NZ
+            (char)(core->af & 0x4000 ? 1 : 0), // Z
+            (char)(core->af & 0x0100 ? 0 : 1), // NC
+            (char)(core->af & 0x0100 ? 1 : 0), // C
+            (char)(core->af & 0x0400 ? 0 : 1), // PO
+            (char)(core->af & 0x0400 ? 1 : 0), // PE
+            (char)(core->af & 0x8000 ? 0 : 1), // P
+            (char)(core->af & 0x8000 ? 1 : 0), // M
+        };
+
+        switch (_a)
+        {
+            // DJNZ
+            case 0x10: return (core->bc & 0xFF00) != 1 ?  : 0;
+
+            // JR
+            case 0x18: return _r8;
+
+            // JR nz, z, nc, c
+            case 0x20: case 0x28:
+            case 0x30: case 0x38:
+                return _cond[(_a >> 3) & 3] ? _r8 : 0;
+
+            // RET cc
+            case 0xC0: case 0xC8:
+            case 0xD0: case 0xD8:
+            case 0xE0: case 0xE8:
+            case 0xF0: case 0xF8:
+                return _cond[(_a >> 3) & 7] ? (_sp < a ? -1 : 1) : 0;
+
+            // JP|CALL cc
+            case 0xC2: case 0xC4: case 0xCA: case 0xCC:
+            case 0xD2: case 0xD4: case 0xDA: case 0xDC:
+            case 0xE2: case 0xE4: case 0xEA: case 0xEC:
+            case 0xF2: case 0xF4: case 0xFA: case 0xFC:
+                return _cond[(_a >> 3) & 7] ? (_wd < a ? -1 : 1) : 0;
+        }
+
+        return 0;
+    }
 
     // Сформировать операнд (IX|IY+d)
     void ixy_disp(int prefix)

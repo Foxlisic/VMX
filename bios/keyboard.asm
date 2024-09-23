@@ -5,13 +5,14 @@
 ; Очистка клавиатурного буфера
 kbd_init:
 
-        ld      ix, KEYBUF
-        ld      bc, 0x08FF
-        xor     a
-.kbclr: ld      (ix+0), c
-        ld      (ix+8), a
-        inc     ix
-        djnz    .kbclr
+        ld      hl, KEYBUF
+        ld      a, 0xFF
+        call    .c2
+        inc     a
+.c2:    ld      b, 8
+.c1:    ld      (hl), a
+        inc     hl
+        djnz    .c1
         ret
 
 ; Цикл проверки изменений клавиатуры
