@@ -11,6 +11,7 @@ module mmap
     input        [ 7:0] o_data,     // Исходящие из процессора данных
     input               we,
     output  reg  [ 7:0] portin,
+    input               portrd,
     input               portwe,
 
     // Управление памятью
