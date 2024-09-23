@@ -3,7 +3,6 @@
 
 #include <128k.h>
 #include <48k.h>
-#include <trdos.h>
 #include "vmx.h"
 
 int main(int argc, char** argv)

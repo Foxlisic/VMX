@@ -185,7 +185,7 @@ protected:
 
     uint8_t     screen[352][312];
     uint8_t     port_7ffd, border, flash_state = 0;
-    uint8_t     trdos_latch = 0, port_fe = 0;
+    uint8_t     port_fe = 0;
     uint32_t    total_tstates = 0;
 
     uint8_t     debug_console = 0;
@@ -227,7 +227,6 @@ public:
 
             rom[0x0000 + i] = rom128k[i];
             rom[0x4000 + i] = rom48k[i];
-            rom[0x8000 + i] = trdosrom[i];
         }
 
         for (int i = 0; i < 8; i++) {
@@ -412,9 +411,6 @@ public:
         if (core->we)     write(A, core->o_data);
         if (core->portwe) io_write(A, core->o_data);
 
-        // Вход в TRDOS
-        if (core->m0) trdos_handler(A);
-
         core->i_data = read(A);
         core->portin = io_read(A);
 
@@ -541,7 +537,7 @@ public:
     {
         // Обращение к ROM 128k|48k (0 или 16384)
         if (address < 0x4000) {
-            return trdos_latch ? rom[0x8000 + address] : rom[get_bank(address)];
+            return rom[get_bank(address)];
         }
 
         return ram[get_bank(address)];
@@ -627,19 +623,6 @@ public:
         core->_i_mode = core->i_mode;
         core->_iff1   = core->iff1;
         core->_iff2   = core->iff2;
-    }
-
-    // Проверяется наличие входа и выхода из TRDOS
-    void trdos_handler(uint16_t pc)
-    {
-        // Только 48k ROM разрешен
-        if (port_7ffd & 0x10) {
-
-            // Вход в TRDOS : инструкция находится в адресе 3Dh
-            if      (!trdos_latch && (pc & 0xFF00) == 0x3D00) { trdos_latch = 1; }
-            // Выход из TRDOS
-            else if ( trdos_latch && (pc & 0xC000))           { trdos_latch = 0; }
-        }
     }
 
     // Занесение нажатия в регистры

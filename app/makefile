@@ -2,7 +2,7 @@ VLIB=/usr/share/verilator/include
 
 all: app run
 run:
-	./vmx -D > vmx.log
+	./vmx -2 -D > vmx.log
 app: syn
 	g++ -Ofast -o vmx -I../app/roms -I$(VLIB) \
 		-Wno-unused-result \

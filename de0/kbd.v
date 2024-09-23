@@ -11,12 +11,10 @@ module kbd
     input   wire    [ 7:0]  ps2data,
     input   wire            ps2hit,
     input   wire    [15:0]  A,
-    output  reg     [ 7:0]  D,          // ZX-spectrum
-    output  reg     [ 7:0]  inreg,      // ASCII-символы
-    output  reg             klatch      // Признак изменения символа
+    output  reg     [ 7:0]  D           // ZX-spectrum
 );
 
-initial begin D = 0; klatch = 0; end
+initial begin D = 0; end
 
 reg         released = 1'b0;
 reg  [5:0]  zx_keys[8];
@@ -201,94 +199,6 @@ always @(posedge clock_50) begin
             released <= 1'b0;
 
         end
-    end
-
-end
-
-// Прием ASCII символов с расширенной клавиатуры
-always @(posedge clock_50) begin
-
-    if (ps2hit && ps2data != 8'hF0) begin
-
-        // Левый или правый шифт
-        if (ps2data == 8'h12 || ps2data == 8'h59) begin
-            shift <= ~released;
-        end
-        // Учитывать только нажатие клавиш
-        else if (released == 1'b0) begin
-
-            case (ps2data)
-
-                // Цифробуквенная клавиатура
-                /* A  */ 8'h1C: inreg <= shift ? 8'h41 : 8'h61;
-                /* B  */ 8'h32: inreg <= shift ? 8'h42 : 8'h62;
-                /* C  */ 8'h21: inreg <= shift ? 8'h43 : 8'h63;
-                /* D  */ 8'h23: inreg <= shift ? 8'h44 : 8'h64;
-                /* E  */ 8'h24: inreg <= shift ? 8'h45 : 8'h65;
-                /* F  */ 8'h2B: inreg <= shift ? 8'h46 : 8'h66;
-                /* G  */ 8'h34: inreg <= shift ? 8'h47 : 8'h67;
-                /* H  */ 8'h33: inreg <= shift ? 8'h48 : 8'h68;
-                /* I  */ 8'h43: inreg <= shift ? 8'h49 : 8'h69;
-                /* J  */ 8'h3B: inreg <= shift ? 8'h4A : 8'h6A;
-                /* K  */ 8'h42: inreg <= shift ? 8'h4B : 8'h6B;
-                /* L  */ 8'h4B: inreg <= shift ? 8'h4C : 8'h6C;
-                /* M  */ 8'h3A: inreg <= shift ? 8'h4D : 8'h6D;
-                /* N  */ 8'h31: inreg <= shift ? 8'h4E : 8'h6E;
-                /* O  */ 8'h44: inreg <= shift ? 8'h4F : 8'h6F;
-                /* P  */ 8'h4D: inreg <= shift ? 8'h50 : 8'h70;
-                /* Q  */ 8'h15: inreg <= shift ? 8'h51 : 8'h71;
-                /* R  */ 8'h2D: inreg <= shift ? 8'h52 : 8'h72;
-                /* S  */ 8'h1B: inreg <= shift ? 8'h53 : 8'h73;
-                /* T  */ 8'h2C: inreg <= shift ? 8'h54 : 8'h74;
-                /* U  */ 8'h3C: inreg <= shift ? 8'h55 : 8'h75;
-                /* V  */ 8'h2A: inreg <= shift ? 8'h56 : 8'h76;
-                /* W  */ 8'h1D: inreg <= shift ? 8'h57 : 8'h77;
-                /* X  */ 8'h22: inreg <= shift ? 8'h58 : 8'h78;
-                /* Y  */ 8'h35: inreg <= shift ? 8'h59 : 8'h79;
-                /* Z  */ 8'h1A: inreg <= shift ? 8'h5A : 8'h7A;
-                /* 0) */ 8'h45: inreg <= shift ? 8'h29 : 8'h30;
-                /* 1! */ 8'h16: inreg <= shift ? 8'h21 : 8'h31;
-                /* 2@ */ 8'h1E: inreg <= shift ? 8'h40 : 8'h32;
-                /* 3# */ 8'h26: inreg <= shift ? 8'h23 : 8'h33;
-                /* 4$ */ 8'h25: inreg <= shift ? 8'h24 : 8'h34;
-                /* 5% */ 8'h2E: inreg <= shift ? 8'h25 : 8'h35;
-                /* 6^ */ 8'h36: inreg <= shift ? 8'h5E : 8'h36;
-                /* 7& */ 8'h3D: inreg <= shift ? 8'h26 : 8'h37;
-                /* 8* */ 8'h3E: inreg <= shift ? 8'h2A : 8'h38;
-                /* 9( */ 8'h46: inreg <= shift ? 8'h28 : 8'h39;
-
-                // Спецсимволы
-                /* `~ */ 8'h0E: inreg <= shift ? 8'h7E : 8'h60;
-                /* -_ */ 8'h4E: inreg <= shift ? 8'h5F : 8'h2D;
-                /* =+ */ 8'h55: inreg <= shift ? 8'h2B : 8'h3D;
-                /* ,< */ 8'h41: inreg <= shift ? 8'h3C : 8'h2C;
-                /* .> */ 8'h49: inreg <= shift ? 8'h3E : 8'h2E;
-                /* \| */ 8'h5D: inreg <= shift ? 8'h7C : 8'h5C;
-                /* [{ */ 8'h54: inreg <= shift ? 8'h7B : 8'h5B;
-                /* ]} */ 8'h5B: inreg <= shift ? 8'h7D : 8'h5D;
-                /* ;: */ 8'h4C: inreg <= shift ? 8'h3A : 8'h3B;
-                /* '" */ 8'h52: inreg <= shift ? 8'h22 : 8'h27;
-                /* /? */ 8'h4A: inreg <= shift ? 8'h3F : 8'h2F;
-
-                // Разные клавиши
-                /* SP */ 8'h29: inreg <= 8'h20;
-                /* TB */ 8'h0D: inreg <= 8'h09;
-                /* EN */ 8'h5A: inreg <= 8'h0A;
-                /* BS */ 8'h66: inreg <= 8'h08;
-                /* ES */ 8'h76: inreg <= 8'h1B;
-
-                // Стрелочки, в том числе на цифровой клавиатуре
-                /* UP */ 8'h75: inreg <= 8'h01;
-                /* RT */ 8'h74: inreg <= 8'h02;
-                /* DN */ 8'h72: inreg <= 8'h03;
-                /* LF */ 8'h6B: inreg <= 8'h04;
-
-            endcase
-
-            klatch <= klatch ^ 1;
-
-        end
-
     end
 
 end

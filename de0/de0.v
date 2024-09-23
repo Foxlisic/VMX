@@ -128,8 +128,6 @@ wire        irq;
 wire [7:0]  kbd;
 wire [7:0]  ps2data;
 wire        ps2hit;
-wire [7:0]  inreg;
-wire        klatch;
 wire        spkr;
 
 // "Магнитная лента"
@@ -265,8 +263,6 @@ mmap ResourceRouterUnit
     .kbd            (kbd),
     .mic            (mic),
     .spkr           (spkr),
-    .inreg          (inreg),
-    .klatch         (klatch),
     .tap_address    (tap_address),
     .tap_address_blk(tap_address_blk),
 
@@ -355,9 +351,7 @@ kbd KbdControllerUnit
     .ps2data    (ps2data),
     .ps2hit     (ps2hit),
     .A          (address),
-    .D          (kbd),
-    .inreg      (inreg),
-    .klatch     (klatch)
+    .D          (kbd)
 );
 
 // ---------------------------------------------------------------------

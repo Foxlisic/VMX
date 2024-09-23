@@ -29,8 +29,6 @@ module mmap
     // Клавиатура, микрофон
     input        [ 7:0] kbd,
     input               mic,
-    input        [ 7:0] inreg,
-    input               klatch,
     output reg          spkr,
     output       [16:0] tap_address,        // К памяти TAP/ExtVideo
     input        [16:0] tap_address_blk,    // TAP-модуль
@@ -40,7 +38,6 @@ module mmap
     output reg  [7:0]   ay_data_o,
     input       [7:0]   ay_data_i,
     output reg          ay_req,
-
 
     // Интерфейс
     output reg          sd_signal,  // 0->1 Команда на позитивном фронте
@@ -61,6 +58,8 @@ end
 
 wire [15:0] A = address;
 
+// ---------------------------------------------------------------------
+
 // http://speccy.info/Порт_7FFD
 reg  [7:0]  port7ffd = 0;
 reg         trdos    = 0;
@@ -76,6 +75,8 @@ wire        rompage  = port7ffd[5] ? 1'b1 : port7ffd[4];
 
 // Доступ к памяти видеоадаптера при включенном 7-м бите порта port7ffd
 assign      tap_address = port7ffd[7] ? ram_address : tap_address_blk;
+
+// ---------------------------------------------------------------------
 
 // Роутеры
 always @(*) begin
@@ -112,9 +113,7 @@ always @(*) begin
     // AY-чип
     if      (A == 16'hFFFD)   portin = ay_reg;
     else if (A == 16'hBFFD)   portin = ay_data_i;
-    // Порты Лисиона
-    else if (A == 16'h00EF)   portin = inreg;
-    else if (A == 16'h01EF)   portin = klatch;
+    // SD-карта
     else if (A[7:0] == 8'h0F) portin = sd_din;
     else if (A[7:0] == 8'h1F) portin = {sd_timeout, 6'b000000, sd_busy};
     // ZX Spectrum +2/+3
