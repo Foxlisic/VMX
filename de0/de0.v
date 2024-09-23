@@ -104,23 +104,20 @@ wire        we;
 wire        m0;
 wire        hold;
 wire [ 7:0] portin;
+wire        portrd;
 wire        portwe;
 wire        ram_we;
-wire        tap_we;
 wire        vidpage;
 
 // Память
-wire [ 7:0] rom_idata;
-wire [ 7:0] rom_trdos;
-wire [ 7:0] ram_idata;
 wire [16:0] ram_address;
 wire [14:0] rom_address;
+wire [ 7:0] rom_idata, ram_idata;
 
 // Видеоадаптер
 wire [12:0] vaddr;
-wire [ 7:0] vdata;
 wire [16:0] addrhi;
-wire [ 7:0] datahi;
+wire [ 7:0] datahi, vdata;
 wire [ 2:0] border;
 wire        irq;
 
@@ -132,9 +129,6 @@ wire        spkr;
 
 // "Магнитная лента"
 wire        mic;
-wire [16:0] tap_address;
-wire [16:0] tap_address_blk;
-wire [ 7:0] tap_data;
 
 // AY-чип
 wire [ 3:0] ay_reg;
@@ -158,7 +152,6 @@ wire        sd_timeout;
 de0pll unit_pll
 (
     .clkin     (CLOCK_50),
-    // Производные частоты
     .m25       (clock_25),
     .m50       (clock_50),
     .m100      (clock_100),
@@ -247,13 +240,11 @@ mmap ResourceRouterUnit
     // ROM: 0=BASIC128,1=BASIC48
     .rom_address    (rom_address),
     .rom_idata      (rom_idata),
-    .rom_trdos      (rom_trdos),
 
     // Запись или чтение из 128k памяти
     .ram_address    (ram_address),
     .ram_idata      (ram_idata),
     .ram_we         (ram_we),
-    .tap_we         (tap_we),
 
     // Видеостраница
     .vidpage        (vidpage),
@@ -263,8 +254,6 @@ mmap ResourceRouterUnit
     .kbd            (kbd),
     .mic            (mic),
     .spkr           (spkr),
-    .tap_address    (tap_address),
-    .tap_address_blk(tap_address_blk),
 
     // AY
     .ay_reg         (ay_reg),
@@ -293,14 +282,6 @@ rom32 UnitRom32
     .q_a        (rom_idata)
 );
 
-// 16k TRDOS
-romtr UnitRomTR
-(
-    .clock      (clock_100),
-    .address_a  (rom_address[13:0]),
-    .q_a        (rom_trdos)
-);
-
 // 128k RAM
 ram128 UnitRam128
 (
@@ -314,19 +295,6 @@ ram128 UnitRam128
     // Доступ из видеоадаптера
     .address_b  ({1'b1, vidpage, 2'b10, vaddr[12:0]}),
     .q_b        (vdata)
-);
-
-// 128k TapStore
-tapdata UnitTapdata
-(
-    .clock      (clock_100),
-    .address_a  (tap_address),
-    .q_a        (tap_data),
-    .data_a     (o_data),
-    .wren_a     (tap_we),
-    // Считывание данных видеоадаптером
-    .address_b  (addrhi),
-    .q_b        (datahi)
 );
 
 // ---------------------------------------------------------------------
@@ -352,21 +320,6 @@ kbd KbdControllerUnit
     .ps2hit     (ps2hit),
     .A          (address),
     .D          (kbd)
-);
-
-// ---------------------------------------------------------------------
-// Загрузчик с магнитной ленты
-// ---------------------------------------------------------------------
-
-tap TapeUnit
-(
-    .reset_n        (reset_n),
-    .clock          (clock_cpu),
-    .hold_n         (~hold),
-    .play           (~KEY[0]),
-    .mic            (mic),
-    .tap_address    (tap_address_blk),
-    .tap_data       (tap_data)
 );
 
 // Контроллер SD

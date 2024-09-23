@@ -15,12 +15,10 @@ module mmap
 
     // Управление памятью
     output reg   [14:0] rom_address, // 32k
-    input        [ 7:0] rom_idata,
-    input        [ 7:0] rom_trdos,
     output reg   [16:0] ram_address, // 128k
+    input        [ 7:0] rom_idata,
     input        [ 7:0] ram_idata,
     output reg          ram_we,
-    output reg          tap_we,
 
     // Видеопамять
     output              vidpage,
@@ -30,8 +28,6 @@ module mmap
     input        [ 7:0] kbd,
     input               mic,
     output reg          spkr,
-    output       [16:0] tap_address,        // К памяти TAP/ExtVideo
-    input        [16:0] tap_address_blk,    // TAP-модуль
 
     // Регистры AY
     output reg  [3:0]   ay_reg,
@@ -62,7 +58,6 @@ wire [15:0] A = address;
 
 // http://speccy.info/Порт_7FFD
 reg  [7:0]  port7ffd = 0;
-reg         trdos    = 0;
 
 // Выбранный банк памяти
 wire [2:0]  bank     = port7ffd[5] ? 3'd0 : port7ffd[2:0];
@@ -73,9 +68,6 @@ assign      vidpage  = port7ffd[5] ? 1'b0 : port7ffd[3];
 // Если D5, то зафиксировать 48k ROM
 wire        rompage  = port7ffd[5] ? 1'b1 : port7ffd[4];
 
-// Доступ к памяти видеоадаптера при включенном 7-м бите порта port7ffd
-assign      tap_address = port7ffd[7] ? ram_address : tap_address_blk;
-
 // ---------------------------------------------------------------------
 
 // Роутеры
@@ -84,15 +76,14 @@ always @(*) begin
     i_data      = ram_idata;
     portin      = 8'hFF;
     ram_we      = 1'b0;
-    tap_we      = 1'b0;
     ram_address = A[15:0];
     rom_address = {rompage, A[13:0]};
 
     // 16-битная адресная шина
     case (A[15:14])
 
-        // Выбрана область ROM (или TRDOS)
-        2'b00: begin i_data = trdos ? rom_trdos : rom_idata; end
+        // Выбрана область ROM
+        2'b00: begin i_data = rom_idata; end
 
         // Всегда отображается банк 5/2
         2'b01,
@@ -101,9 +92,7 @@ always @(*) begin
         // Выбор банка памяти
         2'b11: begin
 
-            tap_we = we &  port7ffd[7]; // Активен когда 1
             ram_we = we & ~port7ffd[7]; // Активен когда 0
-
             ram_address = {bank, A[13:0]};
 
         end
@@ -132,9 +121,10 @@ always @(posedge clock) begin
 
     sd_signal <= 1'b0;
 
+    // Выбор 128K
     if (reset_n == 0) begin
 
-        port7ffd  <= 0; // Выбор 128K
+        port7ffd  <= 0;
         ay_req    <= 0;
 
     end
@@ -161,24 +151,6 @@ always @(posedge clock) begin
         end
         // Запись бордера и звука
         else if (A[0] == 1'b0) begin spkr <= ^o_data[4:3]; border[2:0] <= o_data[2:0]; end
-
-    end
-
-end
-
-// Переключение в TRDOS
-always @(negedge clock) begin
-
-    if (reset_n == 1'b0) begin
-        trdos <= 0;
-    end
-    // TRDOS активируется только в 48k режиме
-    else if (hold && m0 && port7ffd[5:4]) begin
-
-        // Вход в область TRDOS
-        if (A[15:8] == 8'h3D) trdos <= 1'b1;
-        // Выход из TRDOS при выходе из ROM
-        else if (A[15:14])    trdos <= 1'b0;
 
     end
 
