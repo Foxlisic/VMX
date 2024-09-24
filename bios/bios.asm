@@ -35,24 +35,22 @@ reset:  ld      a, $0F
         call    kbd_init
 
         ld      hl, $0000
-        ld      (LOCYX), hl
-.t1:    ld      a, 'x'
+        call    locate
+
+.a1:    ld      a, 'x'
         call    pchr
-        ld      a, (LOCYX)
+        ld      a,(LOCYX)
         inc     a
-        ld      (LOCYX), a
+        ld      (LOCYX),a
         cp      $40
-        jr      nz, .t1
+        jr      nz, .a1
         xor     a
-
-        ld      (LOCYX), a
-        ld      a, (LOCYX+1)
+        ld      (LOCYX),a
+        ld      a,(LOCYX+1)
         inc     a
-        ld      (LOCYX+1), a
+        ld      (LOCYX+1),a
         cp      24
-        jr      nz, .t1
-
-
+        jr      nz, .a1
 
         ei
         jr      $

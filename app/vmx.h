@@ -382,6 +382,8 @@ public:
                 flash_state = (flash_state + 1) % 50;
             }
 
+            // if (cpu_halt == 0) { printf("[%d] %d %d\n", SDL_GetTicks(), SDL_GetTicks() - start, total_tstates); }
+
             // В случае досрочного завершения кадра, ждать
             while (SDL_GetTicks() - start < length) SDL_Delay(1);
 

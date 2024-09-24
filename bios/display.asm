@@ -9,36 +9,61 @@ cls:    ld      b, a
         rrca
         out     ($FE),a
         ld      a, b
-        ld      hl, $0000       ; 3
-        add     hl, sp          ; 1
-        ld      (TMP16), hl     ; 3
-        ld      hl, $0000       ; 3
-        ld      sp, $5B00       ; 3
-        ld      bc, $6003       ; 3 :: 96 на атрибуты, 3*256 на экран
-        ld      d, a            ; 1
-        ld      e, a            ; 1
-.a:     push    de  ; 1
-        push    de  ; 1
-        push    de  ; 1
-        push    de  ; 1
-        djnz    .a  ; 2
-.b:     push    hl  ; 1
-        push    hl  ; 1
-        push    hl  ; 1
-        push    hl  ; 1
-        djnz    .b  ; 2
-        dec     c   ; 1
-        jr      nz, .b      ; 2
-        ld      hl, (TMP16) ; 3
-        ld      sp, hl      ; 1
-        ret                 ; 1
+        ld      hl, $0000
+        add     hl, sp
+        ld      (TMP16), hl
+        ld      hl, $0000
+        ld      sp, $5B00
+        ld      bc, $6003       ; 96 на атрибуты, 3*256 на экран
+        ld      d, a
+        ld      e, a
+.a:     push    de
+        push    de
+        push    de
+        push    de
+        djnz    .a
+.b:     push    hl
+        push    hl
+        push    hl
+        push    hl
+        djnz    .b
+        dec     c
+        jr      nz, .b
+        ld      hl, (TMP16)
+        ld      sp, hl
+        ld      hl, $0000       ; Инициализировать курсор
+        call    locate
+        ret
+
+; ----------------------------------------------------------------------
+; Вычислить HL по координатам H=Y L=X
+; ----------------------------------------------------------------------
+; H ...bb000
+; L aaaxxxxx
+; Y    bbaaa
+
+ploc:   ld      a, l
+        and     a, $3E          ; L[5:1] -> L[4:0]
+        rrca
+        ld      l, a
+        ld      a, h
+        rrca
+        rrca
+        rrca
+        and     a, $E0          ; H[2:0] -> L[7:5]
+        or      a, l
+        ld      l, a            ; L=aaaxxxxx
+        ld      a, h
+        and     a, $18
+        add     a, $40
+        ld      h, a            ; H[2:0]=0, H[6]=1
+        ret
 
 ; ----------------------------------------------------------------------
 ; Печать символа A в LOCYX=(Y,X)
 ; ----------------------------------------------------------------------
 
-pchr:
-        sub     a, $20
+pchr:   sub     a, $20
         ld      de, fontrom     ; Вычислить начальную позицию
         ld      c, 0            ; C=0
         ld      h, c            ; H=0
@@ -54,29 +79,8 @@ pchr:
         ld      a, (LOCYX)
         rrca
         rl      c               ; C[0] Нечетный столбец
-
-        ; H ---bb000
-        ; L aaaxxxxx
-        ; ----------
-        ;      bbaaa
-
-        ; Вычислить HL для (X,Y)
-        ld      a, (LOCYX+1)    ; A = Y
-        ld      b, a
-        and     a, $18
-        add     a, $40          ; H[6]=1
-        ld      h, a            ; A[4:3] -> H[4:3]
-        ld      a, b
-        rrca
-        rrca
-        rrca
-        and     a, $E0
-        ld      l, a            ; A[2:0] -> L[7:5]
-        ld      a, (LOCYX+0)
-        and     a, $3E          ; A[5:1] -> L[4:0]
-        rrca
-        add     a, l
-        ld      l, a            ; Запись X
+        ld      hl, (LOCYX)
+        call    ploc
         ld      b, 8            ; Высота символа 8 строк
 .m4:    ld      a, (de)         ; Прочесть источник данных
         bit     1, c            ; Тест бита конфигурации
@@ -88,24 +92,31 @@ pchr:
 .m1:    and     $0F             ; В любом случае срезать старшие 4 бита изображения
         push    bc
         bit     0, c
-        jr      nz, .m2
-        rlca
+        jr      nz, .m2         ; Вывод символа слева или справа
+        rlca                    ; Сдвинуть на 4 влево
         rlca
         rlca
         rlca
         ld      b, a
         ld      a, (hl)
-        and     $0F
+        and     $0F             ; Срезать 4 пикселя (были) слева
         jr      .m3
 .m2:    ld      b, a
         ld      a, (hl)
-        and     $F0
-.m3:    or      b
-        ld      (hl), a
+        and     $F0             ; Срезать 4 пикселя (были) справа
+.m3:    or      b               ; Наложить пиксели
+        ld      (hl), a         ; Запись обратно
         pop     bc
         inc     de
         inc     h
         djnz    .m4
+        ret
+
+; Установка курсора H=Y L=X
+locate: di
+        ld      (LOCYX), hl
+        ; Если курсор в состоянии мигания
+        ei
         ret
 
 ; ----------------------------------------------------------------------
