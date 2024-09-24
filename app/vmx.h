@@ -51,7 +51,8 @@ enum Regs16Ref {
     R_DE = 2,
     R_HL = 3,
     R_SP = 4,
-    R_AF = 5
+    R_AF = 5,
+    R_WD = 6
 };
 
 const char* ds_mnemonics[256] = {
@@ -95,14 +96,14 @@ const char* ds_mnemonics[256] = {
 
 const char ds_registers16[256] = {
 
-    /* 00 */    R__,    R_BC,   R_BC,   R_BC,   R__,    R__,    R__,    R__,
-    /* 08 */    R__,    R_BC,   R_BC,   R_BC,   R__,    R__,    R__,    R__,
-    /* 10 */    R__,    R_DE,   R_DE,   R_DE,   R__,    R__,    R__,    R__,
-    /* 18 */    R__,    R_DE,   R_DE,   R_DE,   R__,    R__,    R__,    R__,
-    /* 20 */    R__,    R_HL,   R_HL,   R_HL,   R__,    R__,    R__,    R__,
-    /* 28 */    R__,    R_HL,   R_HL,   R_HL,   R__,    R__,    R__,    R__,
-    /* 30 */    R__,    R_SP,   R_SP,   R_SP,   R__,    R__,    R_HL,   R__,
-    /* 38 */    R__,    R_SP,   R_SP,   R_SP,   R__,    R__,    R__,    R__,
+    /* 00 */    R__,    R_WD,   R_BC,   R_BC,   R__,    R__,    R__,    R__,
+    /* 08 */    R__,    R__,    R_BC,   R_BC,   R__,    R__,    R__,    R__,
+    /* 10 */    R__,    R_WD,   R_DE,   R_DE,   R__,    R__,    R__,    R__,
+    /* 18 */    R__,    R__,    R_DE,   R_DE,   R__,    R__,    R__,    R__,
+    /* 20 */    R__,    R_WD,   R_HL,   R_HL,   R__,    R__,    R__,    R__,
+    /* 28 */    R__,    R__,    R_HL,   R_HL,   R__,    R__,    R__,    R__,
+    /* 30 */    R__,    R_WD,   R_SP,   R_SP,   R__,    R__,    R_HL,   R__,
+    /* 38 */    R__,    R__,    R_WD,   R_SP,   R__,    R__,    R__,    R__,
     /* 40 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
     /* 48 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
     /* 50 */    R__,    R__,    R__,    R__,    R__,    R__,    R_HL,   R__,
@@ -368,21 +369,14 @@ public:
                         }
 
                         cpu_clock(cycles++);
+                        ppu_clock();
+                        ppu_clock();
 
-                        // В режиме совместимости подсчет циклов
-                        if (core->compat) {
+                        if (cycles >= cycles_max) { brk = 1; break; }
 
-                            ppu_clock();
-                            ppu_clock();
-
-                            if (cycles >= cycles_max) { brk = 1; break; }
-                        }
                     }
 
                 } while (SDL_GetTicks() - start < length && (brk == 0));
-
-                // Отрендерить один фрейм в режиме несовместимости
-                if (core->compat == 0) update_screen();
 
                 // Мерцающие элементы
                 flash_state = (flash_state + 1) % 50;
@@ -399,7 +393,7 @@ public:
             SDL_RenderPresent       (sdl_renderer);
 
             // Так как используется ПОЛНАЯ мощность, то слегка задержать кадр
-            if (core->compat == 0) SDL_Delay(1);
+            // if (core->compat == 0) SDL_Delay(1);
         }
     }
 
@@ -900,7 +894,7 @@ public:
         for (int x = 452; x <  636; x++) { pset(x,   98, _white); pset(x, 100, _white); }
 
         int a = debug_addr, b;
-        int dsize, match = 0;
+        int dsize, match = 0, ds_addr = 0, ds_size = 0;
 
         do {
 
@@ -909,20 +903,22 @@ public:
 
                 char _ccc = ' ';
 
+                int hightlight = (a == core->pc);
+
                 ds_string[i] = a;
                 b = get_bank(a, 1);
 
                 // Выделение текущей строки
-                if (a == core->pc) {
+                if (hightlight) {
 
-                    match = 1;
+                    match   = 1;
+                    ds_addr = a;
+
                     fr = _white;
                     bg = _blue;
 
                     _ccc = ds_cond_check(a);
                     _ccc = (_ccc < 0 ? '^' : (_ccc > 0 ? 'v' : ' '));
-
-                    // Читать регистры
                     _reg = ds_registers16[read(a)];
 
                 } else {
@@ -933,6 +929,9 @@ public:
                 dsize = disasm(a, 18);
                 loc(2, i + 1); sprintf(buf, "%c%d:%04X%c%s %s", ((a == core->pc) ? '#' : ' '), b, a, _ccc, ds_opcode, ds_operand); print(buf);
                 a += dsize;
+
+                // Запомнить размер инструкции
+                if (hightlight) ds_size = dsize;
             }
 
             if (match == 0) { a = debug_addr = core->pc; }
@@ -1029,14 +1028,25 @@ public:
             loc(8, 0);
             switch (_reg) {
 
-                case 1: ds_dump_address = core->bc; sprintf(buf, " BC %04X=%02X ", core->bc, read(core->bc)); break;
-                case 2: ds_dump_address = core->de; sprintf(buf, " DE %04X=%02X ", core->de, read(core->de)); break;
-                case 3: ds_dump_address = core->hl; sprintf(buf, " HL %04X=%02X ", core->hl, read(core->hl)); break;
-                case 4: ds_dump_address = core->sp; sprintf(buf, " SP %04X=%02X ", core->sp, read(core->sp)); break;
-                case 5: ds_dump_address = core->af; sprintf(buf, " AF %04X ", core->af); break;
+                case R_BC: ds_dump_address = core->bc; sprintf(buf, " BC %04X=%02X ", core->bc, read(core->bc)); break;
+                case R_DE: ds_dump_address = core->de; sprintf(buf, " DE %04X=%02X ", core->de, read(core->de)); break;
+                case R_HL: ds_dump_address = core->hl; sprintf(buf, " HL %04X=%02X ", core->hl, read(core->hl)); break;
+                case R_SP: ds_dump_address = core->sp; sprintf(buf, " SP %04X=%02X ", core->sp, read(core->sp)); break;
+                case R_AF: ds_dump_address = core->af; sprintf(buf, " AF %04X ", core->af); break;
+                case R_WD: ds_dump_address = read(ds_addr+1) + 256*read(ds_addr+2); sprintf(buf, " WD %04X=%02X ", ds_dump_address, read(ds_dump_address)); break;
             }
 
             print(buf);
+        }
+
+        // Вывод строки байт
+        if (ds_size) {
+
+            for (int i = 0; i < ds_size; i++) {
+                loc(2 + i*3, 29);
+                sprintf(buf, " %02X ", read(ds_addr + i));
+                print(buf);
+            }
         }
 
         bg = _blue;  loc(2,   0); print(" Asm ");

@@ -1,8 +1,9 @@
         org     0
 ; ----------------------------------------------------------------------
-KEYBUF      EQU     0x5B00
-KEYBFIFO    EQU     0x5B08
-TMP16       EQU     0x5B10
+KEYBUF      EQU     0x5B00  ; Адрес буфера состояния клавиш
+KEYBFIFO    EQU     0x5B08  ; Клавиатурный буфер FIFO
+TMP16       EQU     0x5B10  ; Временное 16-битное значение
+LOCYX       EQU     0x5B12  ; Текущее положение курсора
 ; ---------------------------------------------------------------------
 rst00:  di                  ; 1
         xor     a           ; 1
@@ -32,6 +33,26 @@ rst38:  push    af
 reset:  ld      a, $0F
         call    cls
         call    kbd_init
+
+        ld      hl, $0000
+        ld      (LOCYX), hl
+.t1:    ld      a, 'x'
+        call    pchr
+        ld      a, (LOCYX)
+        inc     a
+        ld      (LOCYX), a
+        cp      $40
+        jr      nz, .t1
+        xor     a
+
+        ld      (LOCYX), a
+        ld      a, (LOCYX+1)
+        inc     a
+        ld      (LOCYX+1), a
+        cp      24
+        jr      nz, .t1
+
+
 
         ei
         jr      $
