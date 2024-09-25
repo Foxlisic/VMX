@@ -31,30 +31,18 @@ rst38:  push    af
         reti
 
 ; ---------------------------------------------------------------------
-reset:  ld      a, $0F
+reset:  im      0
+        ld      a, (0*8) + 4
         call    cls
         call    kbd_init
-
-.a1:    ld      a, 'x'
-        call    pchr
-        ld      hl, (LOCYX)
-        inc     l
-        call    locate
-        ld      a,(LOCYX)
-        cp      $3F
-        jr      nz, .a1
-
-        ld      hl, (LOCYX)
-        ld      l, 0
-        inc     h
-        call    locate
-        ld      a, (LOCYX+1)
-        cp      23
-        jr      nz, .a1
-    halt
-
         ei
-        jr      $
+
+.x:     call    kbd_fetch
+        jr      z, .x
+        call    prn
+        jr      .x
 
         include "keyboard.asm"
         include "display.asm"
+
+str:    defb    "Casper, Game Zone Greetings from FOX! The superconsole mode on! ",0
