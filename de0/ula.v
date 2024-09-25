@@ -28,41 +28,34 @@ module ula
     output  reg         irq
 );
 
-// Тайминги для горизонтальной развертки (640)
-parameter horiz_visible = 640;
-parameter horiz_back    = 48;
-parameter horiz_sync    = 96;
-parameter horiz_front   = 16;
-parameter horiz_whole   = 800;
-
-// Тайминги для вертикальной развертки (400)
-//                              // 400  480
-parameter vert_visible = 400;   // 400  480
-parameter vert_back    = 35;    // 35   33
-parameter vert_sync    = 2;     // 2    2
-parameter vert_front   = 12;    // 12   10
-parameter vert_whole   = 449;   // 449  525
-
-// visible (видимая область) + front (передний порожек) + sync (синхронизация) + back (задний порожек)
-assign HS = x >= (horiz_visible + horiz_front) && x < (horiz_visible + horiz_front + horiz_sync);
-assign VS = y >= (vert_visible  + vert_front)  && y < (vert_visible  + vert_front  + vert_sync);
+// ---------------------------------------------------------------------
+// Тайминги для горизонтальной и вертикальной развертки
+//           Visible       Front        Sync        Back       Whole
+parameter hzv =  640, hzf =   16, hzs =   96, hzb =   48, hzw =  800,
+          vtv =  480, vtf =   10, vts =    2, vtb =   33, vtw =  525;
+// ---------------------------------------------------------------------
+assign HS = x  < (hzb + hzv + hzf); // NEG.
+assign VS = y  < (vtb + vtv + vtf); // NEG.
 
 // В этих регистрах мы будем хранить текущее положение луча на экране
-reg [9:0] x = 1'b0;
-reg [9:0] y = 1'b0;
+reg  [9:0] x = 1'b0;
+reg  [9:0] y = 1'b0;
 
 // Чтобы правильно начинались данные, нужно их выровнять
-wire [7:0] X  = x[9:1] - 24;
-wire [7:0] Y  = y[9:1] - 4;
+wire [9:0]  X  = x - hzb;
+wire [9:0]  Y  = y - vtb;
+wire [7:0]  Xh = X[9:1] - 24;
+wire [7:0]  Yh = Y[9:1] - 24;
 
 // ---------------------------------------------------------------------
 
-reg [7:0] current_char;
-reg [7:0] current_attr;
-reg [7:0] tmp_current_char;
+// Сохраненные данные
+reg [7:0]   current_char,
+            current_attr,
+            tmp_current_char;
 
 // Получаем текущий бит
-wire current_bit = current_char[ 7^X[2:0] ];
+wire current_bit = current_char[ ~Xh[2:0] ];
 
 // Если бит атрибута 7 = 1, то бит flash будет менять current_bit каждые 0.5 секунд
 wire flashed_bit = (current_attr[7] & flash) ^ current_bit;
@@ -75,7 +68,6 @@ wire [11:0] color = {
     /* Красный цвет - это бит 1 */ src_color[1] ? (current_attr[6] ? 4'hF : 4'hC) : 4'h01,
     /* Зеленый цвет - это бит 2 */ src_color[2] ? (current_attr[6] ? 4'hF : 4'hC) : 4'h01,
     /* Синий цвет   - это бит 0 */ src_color[0] ? (current_attr[6] ? 4'hF : 4'hC) : 4'h01
-
 };
 
 wire [11:0] bgcolor =
@@ -115,25 +107,25 @@ end
 // Генератор на 25 Мгц
 always @(posedge clock) begin
 
-    x <= x == (horiz_whole - 1) ? 1'b0 : (x + 1'b1);
-    if (x == (horiz_whole - 1)) y <= y == (vert_whole - 1) ? 1'b0 : (y + 1'b1);
+    x <= x == (hzw - 1) ? 1'b0 : (x + 1'b1);
+    if (x == (hzw - 1)) y <= y == (vtw - 1) ? 1'b0 : (y + 1'b1);
 
     // Обязательно надо тут использовать попиксельный выход, а то пиксели наполовину съезжают
-    case (x[3:0])
+    case (X[3:0])
 
         // Видеоадрес в ZX Spectrum непросто вычислить
         //         FEDC BA98 7654 3210
         // Адрес =    Y Yzzz yyyx xxxx
 
                                // БанкY  СмещениеY ПолубанкY СмещениеX
-        4'b0000: vaddr <= { Y[7:6], Y[2:0], Y[5:3], X[7:3] };
+        4'b0000: vaddr <= {Yh[7:6], Yh[2:0], Yh[5:3], Xh[7:3]};
 
         // Запись временного значения, чтобы на 16-м такте его обновить
         4'b0001: tmp_current_char <= vdata;
 
         // Запрос атрибута по x=0..31, y=0..23
         // [110] [yyyyy] [xxxxx]
-        4'b0010: vaddr <= { 3'b110, Y[7:3], X[7:3] };
+        4'b0010: vaddr <= {3'b110, Yh[7:3], Yh[7:3]};
 
         // Подготовка к выводу символа
         4'b1111: begin
@@ -166,7 +158,7 @@ always @(posedge clock) begin
     endcase
 
     // Мы находимся в видимой области рисования
-    if (x < horiz_visible && y < vert_visible) begin
+    if (x >= hzb && x < hzb+hzv && y >= vtb && y < vtb+vtv) begin
 
         // Экран 320x200x8
         if (port7ffd[6]) begin
@@ -181,11 +173,12 @@ always @(posedge clock) begin
         // Спектрум-экран
         else begin
 
-            if (x >= 64 && x < (64 + 512) && y >= 8 && y < (8 + 384))
+            if (X >= 64 && X < (64 + 512) && Y >= 48 && Y < (48 + 384))
                  {VGA_R, VGA_G, VGA_B} <= color;
             else {VGA_R, VGA_G, VGA_B} <= bgcolor;
 
         end
+
     end else {VGA_R, VGA_G, VGA_B} <= 12'h000;
 
 end
