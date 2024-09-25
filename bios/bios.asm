@@ -4,6 +4,7 @@ KEYBUF      EQU     0x5B00  ; Адрес буфера состояния кла�
 KEYBFIFO    EQU     0x5B08  ; Клавиатурный буфер FIFO
 TMP16       EQU     0x5B10  ; Временное 16-битное значение
 LOCYX       EQU     0x5B12  ; Текущее положение курсора
+CURBLINK    EQU     0x5B14  ; 0..24 Курсора нет 25..49 Курсор проявлен
 ; ---------------------------------------------------------------------
 rst00:  di                  ; 1
         xor     a           ; 1
@@ -34,23 +35,23 @@ reset:  ld      a, $0F
         call    cls
         call    kbd_init
 
-        ld      hl, $0000
-        call    locate
-
 .a1:    ld      a, 'x'
         call    pchr
+        ld      hl, (LOCYX)
+        inc     l
+        call    locate
         ld      a,(LOCYX)
-        inc     a
-        ld      (LOCYX),a
-        cp      $40
+        cp      $3F
         jr      nz, .a1
-        xor     a
-        ld      (LOCYX),a
-        ld      a,(LOCYX+1)
-        inc     a
-        ld      (LOCYX+1),a
-        cp      24
+
+        ld      hl, (LOCYX)
+        ld      l, 0
+        inc     h
+        call    locate
+        ld      a, (LOCYX+1)
+        cp      23
         jr      nz, .a1
+    halt
 
         ei
         jr      $
