@@ -164,7 +164,7 @@ clockdiv ClockDivUnit
     .reset_n    (reset_n),
     .clock      (clock_cpu),
     .active     (1'b1),
-    .freq       (43),           // 7/50=3.5 Mhz; 4.3Mhz = 43/250
+    .freq       (35),           // 35/250=3.5 Mhz; 4.2Mhz = 42/250
     .fref       (250),
     .hold       (hold)
 );

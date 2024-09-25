@@ -18,7 +18,8 @@ initial hold = 1'b1;
 reg [7:0] latch = 0;
 
 always @(negedge clock)
-if (reset_n == 0 || active == 0) begin hold <= 1'b0; end
+if      (reset_n == 0) begin hold <= 1'b1; end // Чтобы процессор работал
+else if (active  == 0) begin hold <= 1'b0; end
 else begin
 
     hold  <= latch < freq;
