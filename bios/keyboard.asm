@@ -18,18 +18,22 @@ kbd_init:
 ; Цикл проверки изменений клавиатуры
 kbd_irq:
 
-        ld      de, kbdkey      ; Коды клавиш CS=0 SS=0
-        ld      bc, $FEFE
-        in      a, (c)
-        and     a, 1
-        jr      nz, .s3         ; Если CS нажат, то подменить таблицу
-        ld      de, kbdkey_cs
-.s3:    ld      b, $7F
-        in      a, (c)
-        and     a, 2
-        jr      nz, .s4         ; Нажат SS, он приоритетнее CS
-        ld      de, kbdkey_ss
-.s4:    ld      hl, KEYBUF      ; 8 байт статусов кнопок
+    ;halt
+        ld      bc, $7FFE
+        ld      hl, kbdkey      ; Базовая таблица символов (40 символов)
+        ld      de, 40          ; 40 символов размер таблицы
+        in      a, (c)          ; Проверить клавишу SS
+        bit     1, a
+        jr      nz, .ss
+        add     hl, de          ; Если она нажата, то +80
+        add     hl, de
+.ss:    ld      b, $FE
+        in      a, (c)          ; Проверка клавиши CS
+        bit     0, a
+        jr      nz, .cs
+        add     hl, de          ; +40 если нажато
+.cs:    ex      de, hl
+        ld      hl, KEYBUF      ; 8 байт статусов кнопок
         ld      b, $FE          ; Бит 0 очищен в 0 на старте
 .r1:    ld      c, $FE
         in      a, (c)
@@ -99,8 +103,9 @@ kbd_fetch:
 ; ----------------------------------------------------------------------
 ; Данные для клавиатуры
 ; ----------------------------------------------------------------------
-kbdkey: ; CS=0 SS=0
+kbdkey:
 
+        ; CS=0 SS=0
         defb    0,"zxcv"    ; A8  CAP
         defb    "asdfg"     ; A9
         defb    "qwert"     ; A10
@@ -110,8 +115,7 @@ kbdkey: ; CS=0 SS=0
         defb    10,"lkjh"   ; A14
         defb    " ",0,"mnb" ; A15 SYM
 
-kbdkey_cs: ; CS=1 SS=0
-
+        ; CS=1 SS=0
         defb    0,"ZXCV"    ; A8  CAP
         defb    "ASDFG"     ; A9
         defb    "QWERT"     ; A10
@@ -121,9 +125,8 @@ kbdkey_cs: ; CS=1 SS=0
         defb    10,"LKJH"   ; A14
         defb    " ",0,"MNB" ; A15 SYM
 
-kbdkey_ss: ; CS=? SS=0
-
-        defb    1, 0,0,0,0
+        ; CS=0 SS=1
+        defb    0, 0,0,0,0
         defb    0, 0,0,0,0
         defb    0, 0,0,0,0
         defb    0, 0,0,0,0
@@ -131,3 +134,13 @@ kbdkey_ss: ; CS=? SS=0
         defb    0, 0,0,0,0
         defb    0,'=',0,'-',0
         defb    0, 0,".,",0
+
+        ; CS=1 SS=1
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0,'+',0,'_',0
+        defb    0, 0,"><",0
