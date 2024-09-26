@@ -1,6 +1,6 @@
 /**
   * sd_cmd:
-  * 0 CARD-INIT 
+  * 0 CARD-INIT
   * 1 READ/WRITE
   * 2 CS=0: Active
   * 3 CS=1: Deactivate
@@ -110,6 +110,7 @@ always @(posedge clock50) begin
             // CLK-DN
             0: begin spi_cycle <= 1; SPI_SCLK <= 0; SPI_MOSI <= 0; end
             1: begin spi_cycle <= 2; SPI_MOSI <= spi_data_w[7]; end
+
             // CLK-UP
             2: begin spi_cycle <= 3; SPI_SCLK <= 1; spi_counter <= spi_counter + 1; end
             3: begin

@@ -10,23 +10,21 @@ sdread:
         call    sdinit
 .s1:    ret
 
-
 sdinit:
 
         xor     a
         call    sdcmd           ; 80T
-
         ld      hl, $0000
         ld      (SD_ARG32), hl
         ld      (SD_ARG32+2), hl
         ld      a, 0            ; CMD0
         call    sdcomm
-
         ret
 
 ; ----------------------------------------------------------------------
 ; Отослать команду A с 32х битным параметром
 ; ----------------------------------------------------------------------
+
 sdcomm: ld      (TMP16), a      ; Сохранить команду
         ld      a, SD_CE0
         call    sdcmd           ; Активация чипа
@@ -70,17 +68,19 @@ sdcomm: ld      (TMP16), a      ; Сохранить команду
         call    sdput
 
         ; Ожидать снятие флага BSY у чипа (256 проверок)
-        halt
         ld      h, 0
 .k4:    call    sdget
-        rlca
-        jr      nc, .k5
+        jp      p, .k5
         dec     h
         jr      nz, .k4
         ld      a, SD_ERR2
         scf
         ret
-.k5:
+
+        ; CF=0, функция в порядке, ответ -> A
+.k5:    halt
+        scf
+        ccf
         ret
 
 ; ----------------------------------------------------------------------
@@ -89,9 +89,9 @@ sdcomm: ld      (TMP16), a      ; Сохранить команду
 
         ; Ожидать BSY=0
 sdwait: push    af
-        in      a, (SD_CMD)
+.cc:    in      a, (SD_CMD)
         rrca
-        jr      c, sdwait
+        jr      c, .cc
         pop     af
         ret
 
@@ -106,4 +106,5 @@ sdput:  call    sdwait
         out     (SD_DAT), a
         call    sdwait
         in      a, (SD_DAT)
+        and     a
         ret

@@ -5,7 +5,7 @@ KEYBFIFO    EQU     0x5B08  ; Клавиатурный буфер FIFO
 TMP16       EQU     0x5B10  ; Временное 16-битное значение
 LOCYX       EQU     0x5B12  ; Текущее положение курсора
 CURBLINK    EQU     0x5B14  ; 0..24 Курсора нет 25..49 Курсор проявлен
-SD_ARG32    EQU     0x5B16  ; 4 байта
+SD_ARG32    EQU     0x5B18  ; 4 байта
 ; ---------------------------------------------------------------------
 CURFORM     EQU     0x0F    ; Форма курсора
 SD_DAT      EQU     0x0F    ; Порт с данными SD
@@ -46,9 +46,10 @@ reset:  im      0
         ld      a, (0*8) + 4
         call    cls
         call    kbd_init
-        ei
 
         call    sdread
+
+        ei
 
         ;ld      hl, $1700
         ;call    locate

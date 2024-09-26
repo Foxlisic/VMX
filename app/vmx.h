@@ -62,7 +62,7 @@ const char* ds_mnemonics[256] = {
     /* 20 */    "jr",   "ld",   "ld",   "inc",  "inc",  "dec",  "ld",   "daa",
     /* 28 */    "jr",   "add",  "ld",   "dec",  "inc",  "dec",  "ld",   "cpl",
     /* 30 */    "jr",   "ld",   "ld",   "inc",  "inc",  "dec",  "ld",   "scf",
-    /* 38 */    "jr",   "add",  "ld",   "dec",  "inc",  "dec",  "ld",   "cpl",
+    /* 38 */    "jr",   "add",  "ld",   "dec",  "inc",  "dec",  "ld",   "ccf",
 
     /* 40 */    "ld",   "ld",   "ld",   "ld",   "ld",   "ld",   "ld",   "ld",
     /* 48 */    "ld",   "ld",   "ld",   "ld",   "ld",   "ld",   "ld",   "ld",
