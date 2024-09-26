@@ -3,20 +3,64 @@
 ; ----------------------------------------------------------------------
 sdread:
 
-        ; Проверить Timeout=1
-        in      a, (SD_CMD)
-        rlca
-        jr      nc, .s1
+        ld      (TMP16), hl
         call    sdinit
-.s1:    ret
+        ret     c                   ; Возникла ошибка при инициализации
+        ld      a, (SD_TYPE)
+        cp      3
+        jr      z, .s1              ; Тип карточки 3, валидно
+        scf
+        ret
+.s1:    ld      hl, (SD_LBA)
+        ld      (SD_ARG32), hl
+        ld      hl, (SD_LBA+2)
+        ld      (SD_ARG32+2), hl
+        ld      a, 17               ; CMD17: READ sector
+        call    sdcomm
+        ret     c
+
+        ; Ожидание ответа FEh
+        ld      hl, 4095
+.r1:    call    sdget               ; Читать следуюший байт
+        cp      $FE
+        jr      z, .ok              ; Если там FEh то все верно
+        cp      $FF
+        jr      nz, .err            ; Если там не FFh, то это ошибка
+        dec     hl
+        ld      a, h
+        or      l
+        jr      nz, .r1             ; Повтор 4095 раз
+.err:   scf                         ; Ошибка
+        ret
+
+        ; Читать 512 байт в память
+.ok:    ld      de, 512
+        ld      hl, (TMP16)
+.r2:    call    sdget
+        ld      (hl), a
+        inc     hl
+        dec     de
+        ld      a, d
+        or      e
+        jr      nz, .r2
+
+        ; И отключить чип
+        ld      a, 3
+        call    sdcmd               ; CE1
+        scf
+        ccf
+        ret
 
 ; ----------------------------------------------------------------------
 ; Инициализация SD карты
 ; ----------------------------------------------------------------------
 
-sdinit: xor     a
+sdinit: in      a, (SD_CMD)
+        rlca
+        ret     nc                  ; Нет таймаута == инициализировано
+        xor     a
         ld      (SD_TYPE), a
-        call    sdcmd               ; 80T
+        call    sdcmd               ; 80T в медленном режиме, включение SPI
         ld      hl, $0000
         ld      (SD_ARG32), hl
         ld      (SD_ARG32+2), hl
@@ -110,7 +154,7 @@ sdinit: xor     a
 ; Отослать команду A с 32х битным параметром
 ; ----------------------------------------------------------------------
 
-sdcomm: ld      (TMP16), a      ; Сохранить команду
+sdcomm: ld      (TMP8), a      ; Сохранить команду
         ld      a, SD_CE0
         call    sdcmd           ; Активация чипа
 
@@ -127,7 +171,7 @@ sdcomm: ld      (TMP16), a      ; Сохранить команду
         ret
 
         ; Отослать команду
-.k1:    ld      a, (TMP16)
+.k1:    ld      a, (TMP8)
         or      a, $40
         call    sdput
 
@@ -140,7 +184,7 @@ sdcomm: ld      (TMP16), a      ; Сохранить команду
         djnz    .k2
 
         ; В зависимости от команды, выслать CRC
-        ld      a, (TMP16)
+        ld      a, (TMP8)
         cp      0
         ld      b, 0x95
         jr      z, .k3

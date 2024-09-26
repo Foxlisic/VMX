@@ -8,6 +8,7 @@ CURBLINK    EQU     0x5B14  ; 0..24 Курсора нет 25..49 Курсор п
 SD_TYPE     EQU     0x5B15  ; 0=Карта не обнаружена 1=SD1 2=SD2 3=SDHC
 SD_LBA      EQU     0x5B16  ; 4 байта запрос LBA
 SD_ARG32    EQU     0x5B1A  ; 4 байта (внутренний аргумент)
+TMP8        EQU     0x5B1E  ; Временное 8 битное значение
 ; ---------------------------------------------------------------------
 CURFORM     EQU     0x0F    ; Форма курсора
 SD_DAT      EQU     0x0F    ; Порт с данными SD
@@ -43,17 +44,36 @@ rst38:  push    af
 
 ; ---------------------------------------------------------------------
 reset:  im      0
-        ld      a, (0*8) + 4
+        ld      hl, $5B00               ; Заполнить нулями BDA
+        xor     a
+.clr:   ld      (hl), a
+        inc     l
+        jr      nz, .clr
+        ld      a, (0*8) + 4            ; Очистка экрана
         call    cls
         call    kbd_init
 
+        ; -----------
+        ld      hl, $0001
+        ld      (SD_LBA), hl
+
+        ld      b, 13
+        ld      hl, $4000
+.a:     push    bc
         call    sdread
+        push    hl
+        ld      hl, (SD_LBA)
+        inc     hl
+        ld      (SD_LBA), hl
+        pop     hl
+        pop     bc
+        djnz    .a
+        ; -----------
 
         ei
 
         ;ld      hl, $1700
         ;call    locate
-
 
 .x:     call    kbd_fetch
         jr      z, .x
