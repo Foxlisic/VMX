@@ -6,7 +6,7 @@ sdread:
         ld      (TMP16), hl
         call    sdinit
         ret     c                   ; Возникла ошибка при инициализации
-        ld      a, (SD_TYPE)
+        ld      a, (SD_TYPE)        ; Проверить тип SD карты
         cp      3
         jr      z, .s1              ; Тип карточки 3, валидно
         scf
@@ -18,9 +18,7 @@ sdread:
         ld      a, 17               ; CMD17: READ sector
         call    sdcomm
         ret     c
-
-        ; Ожидание ответа FEh
-        ld      hl, 4095
+        ld      hl, 4095            ; Ожидание ответа FEh
 .r1:    call    sdget               ; Читать следуюший байт
         cp      $FE
         jr      z, .ok              ; Если там FEh то все верно
@@ -32,9 +30,7 @@ sdread:
         jr      nz, .r1             ; Повтор 4095 раз
 .err:   scf                         ; Ошибка
         ret
-
-        ; Читать 512 байт в память
-.ok:    ld      de, 512
+.ok:    ld      de, 512             ; Читать 512 байт в память
         ld      hl, (TMP16)
 .r2:    call    sdget
         ld      (hl), a
@@ -43,9 +39,7 @@ sdread:
         ld      a, d
         or      e
         jr      nz, .r2
-
-        ; И отключить чип
-        ld      a, 3
+        ld      a, 3                ; И отключить чип
         call    sdcmd               ; CE1
         scf
         ccf
@@ -62,13 +56,13 @@ sdinit: in      a, (SD_CMD)
         ld      (SD_TYPE), a
         call    sdcmd               ; 80T в медленном режиме, включение SPI
         ld      hl, $0000
-        ld      (SD_ARG32), hl
+        ld      (SD_ARG32+0), hl
         ld      (SD_ARG32+2), hl
-        ld      a, 0                ; CMD0
+        ld      a, 0                ; Отослать CMD0(00000000h)
         call    sdcomm
         ret     c
-        cp      1                   ; Должен быть R1_IDLE код в ответе
-        jr      z, .a1
+        cp      1
+        jr      z, .a1              ; Должен быть R1_IDLE код в ответе
         scf
         ret
 
@@ -83,7 +77,7 @@ sdinit: in      a, (SD_CMD)
         ld      a, 1                ; Если да, то это SD1
         ld      (SD_TYPE), a        ; SD1
         jr      .acmd
-.a2:    ld      b, 4
+.a2:    ld      b, 4                ; Прочесть 4 байта ответа
 .a3:    call    sdget
         djnz    .a3
         cp      $AA
@@ -101,9 +95,7 @@ sdinit: in      a, (SD_CMD)
         ld      (SD_ARG32+2), hl
         ld      a, 55
         call    sdcomm
-
-        ; IF SDType=2 THEN $40 ELSE $00
-        ld      a, (SD_TYPE)
+        ld      a, (SD_TYPE)        ; IF SDType=2 THEN $40 ELSE $00
         cp      2
         ld      a, 0x00
         jr      nz, .a5
@@ -126,11 +118,10 @@ sdinit: in      a, (SD_CMD)
 .a6:    ld      a, (SD_TYPE)
         cp      2
         jr      nz, .end
-
         ld      hl, $0000
         ld      (SD_ARG32), hl
         ld      (SD_ARG32+2), hl
-        ld      a, 58               ; CMD58
+        ld      a, 58               ; CMD58(0)
         call    sdcomm
         ret     c
 
@@ -154,7 +145,7 @@ sdinit: in      a, (SD_CMD)
 ; Отослать команду A с 32х битным параметром
 ; ----------------------------------------------------------------------
 
-sdcomm: ld      (TMP8), a      ; Сохранить команду
+sdcomm: ld      (SD_TMP1), a    ; Сохранить команду
         ld      a, SD_CE0
         call    sdcmd           ; Активация чипа
 
@@ -162,36 +153,36 @@ sdcomm: ld      (TMP8), a      ; Сохранить команду
         ld      hl, SD_TIMEOUT
 .k0:    call    sdget
         cp      $FF
-        jr      z, .k1
+        jr      z, .k1          ; Должен быть ответ FFh
         dec     hl
         ld      a, h
         or      l
-        jr      nz, .k0
+        jr      nz, .k0         ; Считать таймаут
         scf
         ret
 
         ; Отослать команду
-.k1:    ld      a, (TMP8)
+.k1:    ld      a, (SD_TMP1)
         or      a, $40
         call    sdput
 
-        ; Выслать 32х битное значение
+        ; Записать 32х битное значение
         ld      b, 4
-        ld      hl, SD_ARG32+3
+        ld      hl, SD_ARG32+3  ; Сначала старшие
 .k2:    ld      a, (hl)
         call    sdput
-        dec     hl
+        dec     hl              ; Потом младшие байты
         djnz    .k2
 
         ; В зависимости от команды, выслать CRC
-        ld      a, (TMP8)
-        cp      0
+        ld      a, (SD_TMP1)
+        and     a
         ld      b, 0x95
-        jr      z, .k3
+        jr      z, .k3          ; CMD0, CRC=95h
         cp      8
         ld      b, 0x87
-        jr      z, .k3
-        ld      b, 0xFF
+        jr      z, .k3          ; CMD8, CRC=87h
+        ld      b, 0xFF         ; Все остальные CRC=FFh
 .k3:    ld      a, b
         call    sdput
 
