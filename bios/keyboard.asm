@@ -29,12 +29,12 @@ kbd_irq:
         and     a, 2
         jr      nz, .s4         ; Нажат SS, он приоритетнее CS
         ld      de, kbdkey_ss
-.s4:    ld      hl, KEYBUF
-        ld      b, $FE
+.s4:    ld      hl, KEYBUF      ; 8 байт статусов кнопок
+        ld      b, $FE          ; Бит 0 очищен в 0 на старте
 .r1:    ld      c, $FE
         in      a, (c)
-        ld      c, a
-        xor     (hl)
+        ld      c, a            ; Новое состояние порта
+        xor     (hl)            ; Сверить со старым
         ld      (hl), c
         inc     hl
         push    bc              ; Сохранить B
@@ -48,8 +48,6 @@ kbd_irq:
         ld      a, (de)
         and     a, a
         jr      z, .s2          ; CAPS или SHIFT
-
-        ;halt
         push    de
         push    hl
         ld      hl, KEYBFIFO    ; Ссылка на FIFO
@@ -125,11 +123,11 @@ kbdkey_cs: ; CS=1 SS=0
 
 kbdkey_ss: ; CS=? SS=0
 
-        defb    1,0,0,0,0
-        defb    0,0,0,0,0
-        defb    0,0,0,0,0
-        defb    0,0,0,0,0
-        defb    0,0,0,0,0
-        defb    0,0,0,0,0
-        defb    0,0,0,0,0
-        defb    0,0,0,0,0
+        defb    1, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0, 0,0,0,0
+        defb    0,'=',0,'-',0
+        defb    0, 0,".,",0
