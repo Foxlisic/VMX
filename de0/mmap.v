@@ -135,11 +135,11 @@ always @(posedge clock) begin
         if      (A == 16'hFFFD) begin ay_reg <= o_data[3:0]; end
         // AY данные
         else if (A == 16'hBFFD) begin ay_data_o <= o_data; ay_req <= ~ay_req; end
-        // Порты Лисиона
+        // SD
         // -- Команда для чтения или записи на SD (1=R/W cmd)
-        else if (A[7:0] == 8'h0F) begin sd_out <= o_data; sd_signal <= 1'b1; sd_cmd <= 1; end
-        // -- Отсылка команды
-        else if (A[7:0] == 8'h1F) begin sd_cmd <= o_data; sd_signal <= 1'b1; end
+        else if (A[7:0] == 8'h0F) begin sd_signal <= 1'b1; sd_cmd <= 1;      sd_out <= o_data; end
+        // -- Отсылка команды [CMD=0 80T, 1=RW, 2=CS0, 3=CS1]
+        else if (A[7:0] == 8'h1F) begin sd_signal <= 1'b1; sd_cmd <= o_data; sd_out <= 8'hFF; end
         // http://speccy.info/Порт_1FFD
         else if (A == 16'h1FFD) begin /* пустота */ end
         // Запись страницы 7FFDh (упрощенная дешифрация)

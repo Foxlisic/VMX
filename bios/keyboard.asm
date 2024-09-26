@@ -18,7 +18,6 @@ kbd_init:
 ; Цикл проверки изменений клавиатуры
 kbd_irq:
 
-    ;halt
         ld      bc, $7FFE
         ld      hl, kbdkey      ; Базовая таблица символов (40 символов)
         ld      de, 40          ; 40 символов размер таблицы
@@ -33,6 +32,7 @@ kbd_irq:
         jr      nz, .cs
         add     hl, de          ; +40 если нажато
 .cs:    ex      de, hl
+        ; ------------
         ld      hl, KEYBUF      ; 8 байт статусов кнопок
         ld      b, $FE          ; Бит 0 очищен в 0 на старте
 .r1:    ld      c, $FE
@@ -52,6 +52,7 @@ kbd_irq:
         ld      a, (de)
         and     a, a
         jr      z, .s2          ; CAPS или SHIFT
+        ; ------------>
         push    de
         push    hl
         ld      hl, KEYBFIFO    ; Ссылка на FIFO
@@ -69,6 +70,7 @@ kbd_irq:
         ld      (hl), a         ; Сохранить новый код клавиши
         pop     hl
         pop     de
+        ; <------------
 .s2:    pop     af
 .s1:    inc     de
         pop     bc

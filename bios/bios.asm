@@ -5,7 +5,16 @@ KEYBFIFO    EQU     0x5B08  ; Клавиатурный буфер FIFO
 TMP16       EQU     0x5B10  ; Временное 16-битное значение
 LOCYX       EQU     0x5B12  ; Текущее положение курсора
 CURBLINK    EQU     0x5B14  ; 0..24 Курсора нет 25..49 Курсор проявлен
+SD_ARG32    EQU     0x5B16  ; 4 байта
+; ---------------------------------------------------------------------
 CURFORM     EQU     0x0F    ; Форма курсора
+SD_DAT      EQU     0x0F    ; Порт с данными SD
+SD_CMD      EQU     0x1F    ; Порт статуса SD
+SD_CE0      EQU     2
+SD_CE1      EQU     3
+SD_TIMEOUT  EQU     4095
+SD_ERR1     EQU     1
+SD_ERR2     EQU     2
 ; ---------------------------------------------------------------------
 rst00:  di                  ; 1
         xor     a           ; 1
@@ -39,8 +48,11 @@ reset:  im      0
         call    kbd_init
         ei
 
-        ld      hl, $1700
-        call    locate
+        call    sdread
+
+        ;ld      hl, $1700
+        ;call    locate
+
 
 .x:     call    kbd_fetch
         jr      z, .x
@@ -49,3 +61,4 @@ reset:  im      0
 
         include "keyboard.asm"
         include "display.asm"
+        include "sdcard.asm"
