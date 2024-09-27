@@ -561,13 +561,9 @@ public:
             return port_7ffd;
         }
         // SD Read Data
-        else if ((port & 0xFF) == 0x0F) {
-            return spi_data;
-        }
+        else if ((port & 0xFF) == 0x3F) { return spi_data; }
         // SD: Timeout=0, Busy=0
-        else if ((port & 0xFF) == 0x1F) {
-            return sd_status;
-        }
+        else if ((port & 0xFF) == 0x7F) { return sd_status; }
         // else if (port == 0xFFFD) { return ay_register; }
         // else if (port == 0xBFFD) { return ay_regs[ay_register%15]; }
         // Чтение клавиатуры
@@ -602,17 +598,17 @@ public:
 
             port_7ffd = data;
         }
-        // SD COMMAND
-        else if ((port & 0xFF) == 0x1F) {
-
-            sd_status = 0x00;
-            if ((data & 3) == 1) sd_cmd(0xFF); // Случай CMD=1, отсылается FFh
-        }
         // SD DATA SEND/RECV
-        else if ((port & 0xFF) == 0x0F) {
+        else if ((port & 0xFF) == 0x3F) {
 
             sd_status = 0x00;
             sd_cmd(data);
+        }
+        // SD COMMAND
+        else if ((port & 0xFF) == 0x7F) {
+
+            sd_status = 0x00;
+            if ((data & 3) == 1) sd_cmd(0xFF); // Случай CMD=1, отсылается FFh
         }
         // AY address register
         // else if (port == 0xFFFD) { ay_register = data & 15; }

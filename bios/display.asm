@@ -3,7 +3,8 @@
 ; ----------------------------------------------------------------------
 
 ; Очистить экран в цвет A :: 38B (11B + 27B)
-cls:    ld      b, a
+cls:    ld      (CURRENTCLR), a
+        ld      b, a
         rrca
         rrca
         rrca
@@ -14,7 +15,7 @@ cls:    ld      b, a
         ld      (TMP16), hl
         ld      hl, $0000
         ld      sp, $5B00
-        ld      bc, $6003       ; 96 на атрибуты, 3*256 на экран
+        ld      bc, $6003           ; 96 на атрибуты, 3*256 на экран
         ld      d, a
         ld      e, a
 .a:     push    de
@@ -43,18 +44,18 @@ cls:    ld      b, a
 print8: push    af
         push    bc
         ld      b, 2
-        push    af          ; Сначала печатается старший ниббл
+        push    af                  ; Сначала печатается старший ниббл
         rrca
         rrca
         rrca
         rrca
-.a0:    and     0x0F        ; Убирается старшие 4 бита
+.a0:    and     0x0F                ; Убираются старшие 4 бита
         cp      10
         jr      c, .a1
         add     a, 7
 .a1:    add     a, '0'
         call    prn
-        dec     b           ; Если B=1, то был напечатан младший ниббл
+        dec     b                   ; Если B=1, то был напечатан младший ниббл
         jr      z, .a2
         pop     af
         jr      .a0
@@ -86,6 +87,8 @@ prn:    push    bc
         jr      nz, .m1             ; Y<24?
         dec     h
         push    hl
+        ld      hl, (LOCYX)
+        call    curhide
         call    scrollup
         pop     hl
 .m1:    call    locate
@@ -100,6 +103,68 @@ prn:    push    bc
 
 scrollup:
 
+        push    hl
+        push    de
+        push    bc
+        push    af
+        ld      hl, $4000       ; Перемотка экрана наверх
+        ld      de, $4020
+        ld      a, 3
+        ld      c, 0
+.n3:    push    af
+.n2:    ld      b, 8
+        push    de              ; Сохранить DE/HL
+        push    hl
+.n1:    ld      a, (de)         ; Скопировать букву
+        ld      (hl), a
+        inc     h
+        inc     d
+        djnz    .n1
+        pop     hl              ; Восстановить HL/DE
+        pop     de
+        inc     hl
+        inc     de
+        ld      a, e
+        and     a
+        jr      nz, .x1
+        ld      a, d
+        add     7
+        ld      d, a
+.x1:    dec     c
+        jr      nz, .n2
+        ld      a, h
+        add     7
+        ld      h, a
+        pop     af
+        cp      2
+        jr      nz, .x2
+        ld      c, $e0
+.x2:    dec     a
+        jr      nz, .n3
+        xor     a           ; Очистка нижней строки
+        ld      h, $50      ; Банк
+        ld      c, $08      ; 8 строк
+.m2:    ld      l, $e0      ; 7-я строка
+        ld      b, $20      ; 32 символа
+.m1:    ld      (hl), a     ; Удалить область
+        inc     hl
+        djnz    .m1
+        dec     c           ; Здесь будет H++
+        jr      nz, .m2
+        ld      bc, 768-32  ; Сдвиг атрибутов
+        ld      e, $20
+.m3:    ex      de, hl
+        ldir
+        ex      de, hl
+        ld      b, $20      ; Заполнить нижнюю строку атрибутов
+        ld      a, (CURRENTCLR)
+.m4:    ld      (hl), a
+        inc     hl
+        djnz    .m4
+        pop     af
+        pop     bc
+        pop     de
+        pop     hl
         ret
 
 ; ----------------------------------------------------------------------
@@ -110,20 +175,20 @@ scrollup:
 ; Y    bbaaa
 
 ploc:   ld      a, l
-        and     a, $3E          ; L[5:1] -> L[4:0]
+        and     a, $3E              ; L[5:1] -> L[4:0]
         rrca
         ld      l, a
         ld      a, h
         rrca
         rrca
         rrca
-        and     a, $E0          ; H[2:0] -> L[7:5]
+        and     a, $E0              ; H[2:0] -> L[7:5]
         or      a, l
-        ld      l, a            ; L=aaaxxxxx
+        ld      l, a                ; L=aaaxxxxx
         ld      a, h
         and     a, $18
         add     a, $40
-        ld      h, a            ; H[2:0]=0, H[6]=1
+        ld      h, a                ; H[2:0]=0, H[6]=1
         ret
 
 ; ----------------------------------------------------------------------
@@ -131,54 +196,54 @@ ploc:   ld      a, l
 ; ----------------------------------------------------------------------
 
 pchr:   sub     a, $20
-        ld      de, fontrom     ; Вычислить начальную позицию
-        ld      c, 0            ; C=0
-        ld      h, c            ; H=0
+        ld      de, fontrom         ; Вычислить начальную позицию
+        ld      c, 0                ; C=0
+        ld      h, c                ; H=0
         ld      l, a
         srl     l
         add     hl, hl
         add     hl, hl
         add     hl, hl
         add     hl, de
-        ex      de, hl          ; DE = 8*((A - 0x20) >> 1) + fontrom
+        ex      de, hl              ; DE = 8*((A - 0x20) >> 1) + fontrom
         rrca
-        rl      c               ; C[2] Сдвиг символа вправо
+        rl      c                   ; C[2] Сдвиг символа вправо
         ld      a, (LOCYX)
         rrca
-        rl      c               ; C[1] Нечетный столбец
+        rl      c                   ; C[1] Нечетный столбец
         ld      a, (CURBLINK)
         cp      25
-        rl      c               ; C[0]=1 курсора не видно
+        rl      c                   ; C[0]=1 курсора не видно
         ld      hl, (LOCYX)
         call    ploc
-        ld      b, 8            ; Высота символа 8 строк
-.m4:    ld      a, (de)         ; Прочесть источник данных
-        bit     2, c            ; Тест бита конфигурации
-        jr      nz, .m1         ; Если там 1, то тогда знакоместо не двигать
-        rrca                    ; Если 0, то сдвинуть знакоместо на 4 бита вправо
+        ld      b, 8                ; Высота символа 8 строк
+.m4:    ld      a, (de)             ; Прочесть источник данных
+        bit     2, c                ; Тест бита конфигурации
+        jr      nz, .m1             ; Если там 1, то тогда знакоместо не двигать
+        rrca                        ; Если 0, то сдвинуть знакоместо на 4 бита вправо
         rrca
         rrca
         rrca
-.m1:    bit     0, c
+.m1:    bit     0, c                ; Рисовать или не рисовать курсор как подложку
         jr      nz, .m5
         xor     CURFORM
-.m5:    and     $0F             ; В любом случае срезать старшие 4 бита изображения
+.m5:    and     $0F                 ; В любом случае срезать старшие 4 бита изображения
         push    bc
         bit     1, c
-        jr      nz, .m2         ; Вывод символа слева или справа
-        rlca                    ; Сдвинуть на 4 влево
+        jr      nz, .m2             ; Вывод символа слева или справа
+        rlca                        ; Сдвинуть на 4 влево
         rlca
         rlca
         rlca
         ld      b, a
         ld      a, (hl)
-        and     $0F             ; Срезать 4 пикселя (были) слева
+        and     $0F                 ; Срезать 4 пикселя (были) слева
         jr      .m3
 .m2:    ld      b, a
         ld      a, (hl)
-        and     $F0             ; Срезать 4 пикселя (были) справа
-.m3:    or      b               ; Наложить пиксели
-        ld      (hl), a         ; Запись обратно
+        and     $F0                 ; Срезать 4 пикселя (были) справа
+.m3:    or      b                   ; Наложить пиксели
+        ld      (hl), a             ; Запись обратно
         pop     bc
         inc     de
         inc     h
@@ -190,15 +255,21 @@ pchr:   sub     a, $20
 ; ----------------------------------------------------------------------
 
 locate: push    hl
-        ld      a, (CURBLINK)
-        cp      25
-        jr      c, .m1          ; Курсор не показан
-        call    curswitch       ; Если показан, скрыть его
-.m1:    ld      a, 50
+        call    curhide
+        ld      a, 50
         ld      (CURBLINK), a
         pop     hl
         ld      (LOCYX), hl
         call    curswitch.m0
+        ret
+
+; Скрыть курсор
+curhide:ld      a, (CURBLINK)
+        cp      25
+        ret     c
+        call    curswitch           ; Если показан, скрыть его
+        ld      a, 24
+        ld      (CURBLINK), a       ; Курсор сейчас скрыт
         ret
 
 ; Показать или скрыть курсор в позиции (LOCYX)
@@ -211,9 +282,9 @@ curswitch:
         call    ploc
         ld      b, 8
         bit     0, c
-        ld      c, 16*CURFORM              ; Форма курсора на четной линии
+        ld      c, 16*CURFORM       ; Форма курсора на четной линии
         jr      z, .m1
-        ld      c, CURFORM                 ; Форма курсора на нечетной линии
+        ld      c, CURFORM          ; Форма курсора на нечетной линии
 .m1:    ld      a, (hl)
         xor     c
         ld      (hl), a
@@ -227,20 +298,20 @@ curswitch:
 ; Мерцание курсора
 ; ----------------------------------------------------------------------
 
-cursor_blink_irq:
+blink_irq:
 
-        ld      a, (CURBLINK)           ; Текущий таймер мерцания
-        cp      25                      ; Если он был 25, то станет 24
+        ld      a, (CURBLINK)       ; Текущий таймер мерцания
+        cp      25                  ; Если он был 25, то станет 24
         jr      nz, .m1
-        call    curswitch               ; И это значит, что курсор надо скрыть
-.m1:    and     a                       ; А также если из 0 становится 49
+        call    curswitch           ; И это значит, что курсор надо скрыть
+.m1:    and     a                   ; А также если из 0 становится 49
         jr      nz, .m2
-        ld      a, 50                   ; То A=50 сначала
-        call    curswitch               ; И курсор показать
-.m2:    dec     a                       ; Уменьшить таймер на -1
+        ld      a, 50               ; То A=50 сначала
+        call    curswitch           ; И курсор показать
+.m2:    dec     a                   ; Уменьшить таймер на -1
         ld      (CURBLINK), a
         ld      hl, TIMER_LO
-        inc     (hl)                    ; Отсчитывать время
+        inc     (hl)                ; Отсчитывать время
         ret
 
 ; ----------------------------------------------------------------------

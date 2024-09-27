@@ -10,12 +10,13 @@ SD_TYPE     EQU     0x5B16  ; 0=Карта не обнаружена 1=SD1 2=SD2
 SD_LBA      EQU     0x5B17  ; 4 байта запрос LBA
 SD_ARG32    EQU     0x5B1B  ; 4 байта (внутренний аргумент)
 SD_TMP1     EQU     0x5B1F  ; Временное 8 битное значение
+CURRENTCLR  EQU     0x5B20  ; Текущий цвет
 ; ---------------------------------------------------------------------
 SD_SECTOR   EQU     0x5C00  ; 512 байт
 ; ---------------------------------------------------------------------
 CURFORM     EQU     0x0F    ; Форма курсора
-SD_DAT      EQU     0x0F    ; Порт с данными SD
-SD_CMD      EQU     0x1F    ; Порт статуса SD
+SD_DAT      EQU     0x3F    ; Порт с данными SD
+SD_CMD      EQU     0x7F    ; Порт статуса SD
 SD_CE0      EQU     2
 SD_CE1      EQU     3
 SD_TIMEOUT  EQU     4095
@@ -37,7 +38,7 @@ rst38:  push    af
         push    de
         push    bc
         call    kbd_irq
-        call    cursor_blink_irq
+        call    blink_irq
         pop     bc
         pop     de
         pop     hl
@@ -56,27 +57,10 @@ reset:  im      0
         call    cls
         call    kbd_init
 
-        ; -----------
-        ld      hl, $0001
-        ld      (SD_LBA), hl
-
-        ld      b, 13
-        ld      hl, $4000
-.a:     push    bc
-        call    sdread
-        push    hl
-        ld      hl, (SD_LBA)
-        inc     hl
-        ld      (SD_LBA), hl
-        pop     hl
-        pop     bc
-        djnz    .a
-        ; -----------
-
         ei
 
-        ;ld      hl, $1700
-        ;call    locate
+        ld      hl, $1700
+        call    locate
 
 .x:     call    kbd_fetch
         jr      z, .x
