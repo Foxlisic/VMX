@@ -57,10 +57,9 @@ reset:  im      0
         call    cls
         call    kbd_init
 
-        ei
+        ; Загрузка бутсектора
 
-        ld      hl, $1700
-        call    locate
+        ei
 
 .x:     call    kbd_fetch
         jr      z, .x

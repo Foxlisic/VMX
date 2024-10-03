@@ -163,7 +163,7 @@ always @(posedge clock_50) begin
                 /*  B */ 8'h32: zx_keys[7][4] <= released;
 
                 /* Кнопки специальных символов */
-                // При нажатии CS выдается <b> иначе <a>
+                // При нажатии CS выдается <b> иначе <a> ALT=1 Отпущена ALT=0 Нажата
                 /* ,< */ 8'h41: begin zx_keys[7][1] <= released;
                              if (ALT) zx_keys[7][3] <= released; else zx_keys[2][3] <= released; end
                 /* .> */ 8'h49: begin zx_keys[7][1] <= released;

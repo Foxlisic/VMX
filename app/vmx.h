@@ -705,11 +705,11 @@ public:
             case SDL_SCANCODE_BACKSLASH:    break;
             case SDL_SCANCODE_LEFTBRACKET:  break;
             case SDL_SCANCODE_RIGHTBRACKET: break;
-            case SDL_SCANCODE_SEMICOLON:    break;
-            case SDL_SCANCODE_APOSTROPHE:   break;
-            case SDL_SCANCODE_COMMA:        key_press(7, 0x02, press); key_press(7, 0x08, press); break; // ,
-            case SDL_SCANCODE_PERIOD:       key_press(7, 0x02, press); key_press(7, 0x04, press); break; // .
-            case SDL_SCANCODE_SLASH:        break;
+            case SDL_SCANCODE_SEMICOLON:    break; // ;:
+            case SDL_SCANCODE_APOSTROPHE:   break; // '"
+            case SDL_SCANCODE_COMMA:        break; // ,<
+            case SDL_SCANCODE_PERIOD:       break; // .>
+            case SDL_SCANCODE_SLASH:        break; // /?
             case SDL_SCANCODE_BACKSPACE:    key_press(0, 0x01, press); key_press(4, 0x01, press); break; // SS+0 BS
             case SDL_SCANCODE_SPACE:        key_press(7, 0x01, press); break;
             case SDL_SCANCODE_TAB:          key_press(0, 0x01, press); key_press(7, 0x02, press); break; // SS+CS
